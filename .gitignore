@@ -1,0 +1,47 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+app/.env
+app/.env.*
+!app/.env.example
+server/.env
+server/.env.*
+!server/.env.example
+
+# Dependencies
+node_modules/
+app/node_modules/
+server/node_modules/
+
+# Build / Cache
+app/.expo/
+app/.expo-shared/
+app/dist/
+app/web-build/
+app/.next/
+app/.turbo/
+server/dist/
+server/build/
+
+# Runtime data
+server/uploads/
+
+# TypeScript
+*.tsbuildinfo
+
+# Expo generated type file (already generated in app)
+app/expo-env.d.ts

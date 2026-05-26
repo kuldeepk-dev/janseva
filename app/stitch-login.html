@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Jan Seva - Citizen Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=Atkinson+Hyperlegible+Next:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary-fixed-dim": "#c5c6c8",
+                      "on-primary-fixed": "#00164e",
+                      "primary-container": "#1e3a8a",
+                      "on-tertiary": "#ffffff",
+                      "secondary-fixed-dim": "#4edea3",
+                      "surface-container-low": "#eef4ff",
+                      "surface": "#f8f9ff",
+                      "inverse-surface": "#27313e",
+                      "on-error": "#ffffff",
+                      "error": "#ba1a1a",
+                      "on-tertiary-fixed": "#191c1e",
+                      "on-primary-fixed-variant": "#264191",
+                      "on-error-container": "#93000a",
+                      "on-secondary-fixed": "#002113",
+                      "primary-fixed-dim": "#b6c4ff",
+                      "surface-tint": "#4059aa",
+                      "surface-container-high": "#dfe9fa",
+                      "on-secondary": "#ffffff",
+                      "on-tertiary-container": "#aaacae",
+                      "on-tertiary-fixed-variant": "#444749",
+                      "surface-bright": "#f8f9ff",
+                      "surface-container": "#e5eeff",
+                      "tertiary-fixed": "#e1e2e4",
+                      "surface-container-highest": "#d9e3f4",
+                      "tertiary": "#282a2c",
+                      "primary": "#00236f",
+                      "outline-variant": "#c5c5d3",
+                      "inverse-on-surface": "#eaf1ff",
+                      "on-secondary-fixed-variant": "#005236",
+                      "inverse-primary": "#b6c4ff",
+                      "error-container": "#ffdad6",
+                      "secondary-fixed": "#6ffbbe",
+                      "secondary": "#006c49",
+                      "on-surface": "#121c28",
+                      "tertiary-container": "#3e4042",
+                      "secondary-container": "#6cf8bb",
+                      "on-secondary-container": "#00714d",
+                      "on-primary-container": "#90a8ff",
+                      "background": "#f8f9ff",
+                      "surface-container-lowest": "#ffffff",
+                      "primary-fixed": "#dce1ff",
+                      "surface-dim": "#d1dbec",
+                      "on-background": "#121c28",
+                      "outline": "#757682",
+                      "surface-variant": "#d9e3f4",
+                      "on-primary": "#ffffff",
+                      "on-surface-variant": "#444651"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "base": "8px",
+                      "margin-desktop": "32px",
+                      "margin-mobile": "16px",
+                      "container-max": "1280px",
+                      "gutter": "16px"
+              },
+              "fontFamily": {
+                      "headline-md": ["Plus Jakarta Sans"],
+                      "label-sm": ["Inter"],
+                      "body-md": ["Atkinson Hyperlegible Next"],
+                      "body-sm": ["Atkinson Hyperlegible Next"],
+                      "display-lg-mobile": ["Plus Jakarta Sans"],
+                      "body-lg": ["Atkinson Hyperlegible Next"],
+                      "label-md": ["Inter"],
+                      "headline-sm": ["Plus Jakarta Sans"],
+                      "display-lg": ["Plus Jakarta Sans"]
+              },
+              "fontSize": {
+                      "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                      "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                      "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "display-lg-mobile": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                      "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                      "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .step-transition {
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+        .hidden-step {
+            display: none;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md selection:bg-primary-fixed selection:text-on-primary-fixed">
+<div class="min-h-screen flex flex-col items-center justify-center px-margin-mobile md:px-margin-desktop py-10 relative overflow-hidden">
+<!-- Decorative Background Element -->
+<div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-surface-container-high rounded-full blur-3xl opacity-50 z-0"></div>
+<div class="absolute bottom-0 left-0 -ml-20 -mb-20 w-96 h-96 bg-surface-container rounded-full blur-3xl opacity-50 z-0"></div>
+<!-- Language Selector -->
+<div class="absolute top-8 right-margin-mobile md:right-margin-desktop z-10">
+<div class="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant px-3 py-1.5 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-outline text-[20px]" data-icon="language">language</span>
+<select class="bg-transparent border-none focus:ring-0 font-label-md text-label-md text-on-surface cursor-pointer p-0 pr-2" id="lang-switch">
+<option value="en">English</option>
+<option value="hi">рд╣рд┐рдиреНрджре?</option>
+<option value="mr">рдорд░рд╛рдаре?</option>
+</select>
+</div>
+</div>
+<main class="w-full max-w-md bg-surface-container-lowest border border-outline-variant p-8 md:p-10 rounded-xl shadow-sm z-10 transition-all duration-300">
+<!-- Identity Header -->
+<div class="flex flex-col items-center mb-10">
+<div class="mb-6 w-24 h-24 flex items-center justify-center">
+<img alt="Official Emblem" class="h-full w-auto object-contain" data-alt="A detailed, high-resolution rendering of the National Emblem of India, the State Emblem, showing the four Lions of Sarnath. The image is clean and isolated, presented with a professional and official aesthetic suitable for a government service application. The lighting is soft and neutral to emphasize the historical and institutional significance of the symbol." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3KCLAm_bp4r3Smg7u6y5K60YihOKySrMW6Nf0miuTIwhG5wiYywI3wl4OZtiv3bJqgIie1Q3kKxBhXw1OMnj1flaRGTv0Gfi9jBTyq3dqWlXIk7mBmgqSY83EZMR6xhMYoO71gdqsYrKlsEbaynvd7JqlRr73Ae3QKWpCDOmf7i2tThiFsO3chNQGV_u-Ns9IWMRSTZ_WbJ2BIyMcOTg38MuPl7WTNYa4BZl_--FtFQKlHpTfngMGmVfD11NuyhrS7XGYlyRF4TY"/>
+</div>
+<h1 class="font-headline-md text-headline-md text-primary tracking-tight">рд?рди рд╕ре?рд╡рд╛</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-2 text-center" id="welcome-text">
+                    Empowering Citizens through Digital Services
+                </p>
+</div>
+<!-- Login Step 1: Mobile Input -->
+<div class="step-transition" id="step-1">
+<div class="space-y-6">
+<div class="space-y-2">
+<label class="font-label-md text-label-md text-on-surface block px-1" for="mobile-number">
+                            Mobile Number
+                        </label>
+<div class="relative">
+<div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-on-surface-variant">
+<span class="font-body-md">+91</span>
+</div>
+<input class="w-full h-14 pl-14 pr-4 bg-surface border border-outline-variant rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all font-body-md outline-none text-on-surface" id="mobile-number" maxlength="10" placeholder="Enter 10-digit number" type="tel"/>
+</div>
+</div>
+<button class="w-full h-12 bg-primary text-on-primary font-label-md text-label-md rounded-lg active:scale-[0.98] transition-transform hover:shadow-md flex items-center justify-center gap-2" onclick="requestOTP()">
+                        Get OTP
+                        <span class="material-symbols-outlined text-[18px]" data-icon="arrow_forward">arrow_forward</span>
+</button>
+<div class="flex items-center gap-4 py-4">
+<div class="h-px flex-1 bg-outline-variant"></div>
+<span class="text-label-sm font-label-sm text-outline-variant">OR</span>
+<div class="h-px flex-1 bg-outline-variant"></div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<button class="flex items-center justify-center h-12 border border-outline-variant rounded-lg hover:bg-surface-container-high transition-colors gap-2 text-on-surface-variant font-label-md">
+<span class="material-symbols-outlined text-[20px]" data-icon="fingerprint">fingerprint</span>
+                            Biometric
+                        </button>
+<button class="flex items-center justify-center h-12 border border-outline-variant rounded-lg hover:bg-surface-container-high transition-colors gap-2 text-on-surface-variant font-label-md">
+<span class="material-symbols-outlined text-[20px]" data-icon="qr_code_scanner">qr_code_scanner</span>
+                            QR Login
+                        </button>
+</div>
+</div>
+</div>
+<!-- Login Step 2: OTP Verification -->
+<div class="step-transition hidden-step" id="step-2">
+<div class="space-y-6">
+<button class="group flex items-center gap-1 text-on-surface-variant hover:text-primary transition-colors mb-2" onclick="goBack()">
+<span class="material-symbols-outlined text-[18px]" data-icon="chevron_left">chevron_left</span>
+<span class="font-label-sm text-label-sm">Change Number</span>
+</button>
+<div class="space-y-2">
+<div class="flex justify-between items-end px-1">
+<label class="font-label-md text-label-md text-on-surface block" for="otp-input">
+                                Enter OTP
+                            </label>
+<span class="font-label-sm text-label-sm text-on-surface-variant" id="timer">01:59</span>
+</div>
+<div class="flex gap-2 justify-between" id="otp-container">
+<input class="otp-box w-12 h-14 bg-surface border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none" maxlength="1" type="text"/>
+<input class="otp-box w-12 h-14 bg-surface border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none" maxlength="1" type="text"/>
+<input class="otp-box w-12 h-14 bg-surface border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none" maxlength="1" type="text"/>
+<input class="otp-box w-12 h-14 bg-surface border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none" maxlength="1" type="text"/>
+<input class="otp-box w-12 h-14 bg-surface border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none" maxlength="1" type="text"/>
+<input class="otp-box w-12 h-14 bg-surface border border-outline-variant rounded-lg text-center font-headline-md text-headline-md focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all outline-none" maxlength="1" type="text"/>
+</div>
+</div>
+<button class="w-full h-12 bg-primary text-on-primary font-label-md text-label-md rounded-lg active:scale-[0.98] transition-transform hover:shadow-md flex items-center justify-center gap-2">
+                        Verify &amp; Login
+                        <span class="material-symbols-outlined text-[18px]" data-icon="check_circle">check_circle</span>
+</button>
+<div class="text-center">
+<button class="text-label-md font-label-md text-on-surface-variant hover:text-primary transition-colors">
+                            Didn't receive OTP? <span class="text-primary font-bold">Resend</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Trust Footer -->
+<div class="mt-12 text-center space-y-4">
+<div class="flex justify-center gap-6 opacity-60">
+<img alt="Digital India" class="h-8 grayscale hover:grayscale-0 transition-all cursor-help" data-alt="Digital India program logo, representing the government's initiative for digital transformation. The logo is clean, crisp, and displayed in a minimalist professional style on a white background, suggesting technological advancement and national progress." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBcYdx_P2_7Ttha-Crwo5rgs-wx2KXUw3oKVwUEc-AscuXVgoZfQ89hB077-6Vv4Vdp4B8irnjlyyHmM0OLlh_rviTlof9ZH8KB0gB6WLTbt5L8MerrWImHbCiCjP8-_CtEkHPI9mzOsahqoZ1p2_e4x2s-M75UGc-GSadGMjpazVq2CYivZT0MeUDxQLq1isGjVwrfZ69clRfVFJEirGmEiEXuV5qR6ZK60iHkJxdhvYkW_amEVGzrl9bgHObdNTPqOme5SEy5Xq0"/>
+<img alt="MyGov" class="h-8 grayscale hover:grayscale-0 transition-all cursor-help" data-alt="The MyGov India logo, symbolizing citizen engagement and participation in government governance. The visual is sharp and clear, reflecting a modern institutional aesthetic of accountability and accessibility." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnZGong7NvNHzgBUaIMgEnmdODekQaNfjsdq8h9bh52aoiJUhsE7n5qn7xFN5KjKkc-AZObR_Yz3wOIXwP4qosKQtzWppQdOATOhILI-RQJun4e7x3kOxd6jH3pm5qOfTdJ9TzfuVr6s9pCeShsHggnPvlM6PaX3sjWTAzXRzmiY9Ivo16U-_zZQqlpC4E1OeiNuVmeyhBFWk3ssGmwnjqdtRjSxpxrGr4HhhRmgYmPXiLYvQPerUSEQKjkZOsPty38SWCYFNuuN0"/>
+</div>
+<p class="text-[11px] font-label-sm text-outline tracking-wider">
+                    SECURED BY NATIONAL INFORMATICS CENTRE
+                </p>
+</div>
+</main>
+<!-- Accessibility & Support Floating Link -->
+<div class="mt-8 flex gap-4">
+<a class="text-label-sm font-label-sm text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1" href="#">
+<span class="material-symbols-outlined text-[16px]" data-icon="help_outline">help_outline</span>
+                Need Help?
+            </a>
+<span class="text-outline-variant opacity-30">|</span>
+<a class="text-label-sm font-label-sm text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1" href="#">
+<span class="material-symbols-outlined text-[16px]" data-icon="privacy_tip">privacy_tip</span>
+                Privacy Policy
+            </a>
+</div>
+</div>
+<script>
+        const step1 = document.getElementById('step-1');
+        const step2 = document.getElementById('step-2');
+        const otpBoxes = document.querySelectorAll('.otp-box');
+        const langSwitch = document.getElementById('lang-switch');
+        const welcomeText = document.getElementById('welcome-text');
+
+        const translations = {
+            en: {
+                welcome: "Empowering Citizens through Digital Services",
+                mobileLabel: "Mobile Number",
+                otpLabel: "Enter OTP",
+                changeNum: "Change Number"
+            },
+            hi: {
+                welcome: "рдбрд┐рд?рд┐рд?рд▓ рд╕ре?рд╡рд╛рд?рд? рд?ре? рдорд╛рдзреНрдпрдо рд╕ре? рдирд╛рд?рд░рд┐рд?ре?рд? рд?ре? рд╕рд╢рд?реНрдд рдмрдирд╛рдирд╛",
+                mobileLabel: "рдоре?рдмрд╛рд?рд▓ рдирд?рдмрд░",
+                otpLabel: "рд?рд?ре?рдкре? рджрд░реНрд? рд?рд░ре?рд?",
+                changeNum: "рдирд?рдмрд░ рдмрджрд▓ре?рд?"
+            },
+            mr: {
+                welcome: "рдбрд┐рд?рд┐рд?рд▓ рд╕ре?рд╡рд╛рд?рджреНрд╡рд╛рд░ре? рдирд╛рд?рд░рд┐рд?рд╛рд?рд?ре? рд╕рд?реНрд╖рдоре?рд?рд░рдг",
+                mobileLabel: "рдоре?рдмрд╛рд?рд▓ рдирд?рдмрд░",
+                otpLabel: "рд?рд?ре?рдкре? рдкреНрд░рд╡рд┐рд╖реНрд? рд?рд░рд╛",
+                changeNum: "рдирд?рдмрд░ рдмрджрд▓рд╛"
+            }
+        };
+
+        langSwitch.addEventListener('change', (e) => {
+            const lang = e.target.value;
+            welcomeText.textContent = translations[lang].welcome;
+            // Additional translation logic would go here
+        });
+
+        function requestOTP() {
+            const mobile = document.getElementById('mobile-number').value;
+            if (mobile.length === 10) {
+                step1.classList.add('hidden-step');
+                setTimeout(() => {
+                    step1.style.display = 'none';
+                    step2.style.display = 'block';
+                    setTimeout(() => {
+                        step2.classList.remove('hidden-step');
+                        otpBoxes[0].focus();
+                    }, 50);
+                }, 300);
+                startTimer();
+            } else {
+                alert('Please enter a valid 10-digit mobile number.');
+            }
+        }
+
+        function goBack() {
+            step2.classList.add('hidden-step');
+            setTimeout(() => {
+                step2.style.display = 'none';
+                step1.style.display = 'block';
+                setTimeout(() => {
+                    step1.classList.remove('hidden-step');
+                }, 50);
+            }, 300);
+        }
+
+        // Auto-focus next input for OTP
+        otpBoxes.forEach((box, index) => {
+            box.addEventListener('input', (e) => {
+                if (e.target.value && index < otpBoxes.length - 1) {
+                    otpBoxes[index + 1].focus();
+                }
+            });
+            box.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                    otpBoxes[index - 1].focus();
+                }
+            });
+        });
+
+        function startTimer() {
+            let duration = 119;
+            const timerDisplay = document.getElementById('timer');
+            const interval = setInterval(() => {
+                let minutes = Math.floor(duration / 60);
+                let seconds = duration % 60;
+                timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                if (--duration < 0) clearInterval(interval);
+            }, 1000);
+        }
+    </script>
+</body></html>

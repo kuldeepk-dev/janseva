@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Jan Seva Portal",
+    "slug": "janseva-expo-ui",
+    "scheme": "janseva",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

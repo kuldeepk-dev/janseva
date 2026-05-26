@@ -1,0 +1,355 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Citizen Dashboard - �?न स�?वा</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#c5c6c8",
+                        "on-primary-fixed": "#00164e",
+                        "primary-container": "#1e3a8a",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed-dim": "#4edea3",
+                        "surface-container-low": "#eef4ff",
+                        "surface": "#f8f9ff",
+                        "inverse-surface": "#27313e",
+                        "on-error": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-primary-fixed-variant": "#264191",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed": "#002113",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "surface-tint": "#4059aa",
+                        "surface-container-high": "#dfe9fa",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-container": "#aaacae",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "surface-bright": "#f8f9ff",
+                        "surface-container": "#e5eeff",
+                        "tertiary-fixed": "#e1e2e4",
+                        "surface-container-highest": "#d9e3f4",
+                        "tertiary": "#282a2c",
+                        "primary": "#00236f",
+                        "outline-variant": "#c5c5d3",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-secondary-fixed-variant": "#005236",
+                        "inverse-primary": "#b6c4ff",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed": "#6ffbbe",
+                        "secondary": "#006c49",
+                        "on-surface": "#121c28",
+                        "tertiary-container": "#3e4042",
+                        "secondary-container": "#6cf8bb",
+                        "on-secondary-container": "#00714d",
+                        "on-primary-container": "#90a8ff",
+                        "background": "#f8f9ff",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#dce1ff",
+                        "surface-dim": "#d1dbec",
+                        "on-background": "#121c28",
+                        "outline": "#757682",
+                        "surface-variant": "#d9e3f4",
+                        "on-primary": "#ffffff",
+                        "on-surface-variant": "#444651"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "base": "8px",
+                        "margin-desktop": "32px",
+                        "margin-mobile": "16px",
+                        "container-max": "1280px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "label-sm": ["Inter"],
+                        "body-md": ["Atkinson Hyperlegible Next"],
+                        "body-sm": ["Atkinson Hyperlegible Next"],
+                        "display-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-lg": ["Atkinson Hyperlegible Next"],
+                        "label-md": ["Inter"],
+                        "headline-sm": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "display-lg-mobile": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #f8f9ff;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+        }
+        .feed-scroll::-webkit-scrollbar {
+            display: none;
+        }
+        .feed-scroll {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(229, 231, 235, 0.5);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-surface">
+<!-- TopAppBar Shell -->
+<header class="flex justify-between items-center px-margin-mobile h-14 w-full fixed top-0 z-50 bg-surface-container-lowest border-b border-outline-variant">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-primary-container flex items-center justify-center">
+<img alt="Official Emblem" class="w-full h-full object-cover" data-alt="A dignified close-up of the National Emblem of India, the Lion Capital of Ashoka, rendered with high-fidelity metallic textures against a soft, corporate blue gradient. The lighting is professional and clean, reflecting a government institution's gravitas and stability. The overall aesthetic is modern, high-contrast, and authoritative." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBDfoqKvJefZCMQ4yXasM7rKchn6zE2oNQf0xkFiM8jkX-MXNln83ALmYponYJtiwBcwVpOO1o0bZUh-Up-SH-0Pe8dqWHrXCUf_YGCGizNllt1aU9IORbWI-mzQlmIknVlf7_MNqGem1d2l6WFYcYuIq1z_Fi64TXzwrkaWuFtjsAzUeFJJ85gGJc6Og5l4JUOcu8ek15H5WxdBdo0GsjXSSIpRA2G7RAxpmn2kv8-3jUaFH6rRIh1C40NTevAx4kAVJFW1fVz_aU">
+</div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">�?न स�?वा</h1>
+</div>
+<button class="px-3 py-1 rounded-full border border-outline text-primary font-label-md hover:bg-surface-container-high transition-colors">
+            English
+        </button>
+</header>
+<main class="pt-20 pb-24 px-margin-mobile max-w-container-max mx-auto">
+<!-- Welcome Section -->
+<section class="mb-8">
+<div class="flex items-end justify-between">
+<div>
+<p class="font-label-md text-on-surface-variant mb-1">Namaste, Sandeep</p>
+<h2 class="font-display-lg-mobile text-display-lg-mobile text-primary leading-tight">Your Dashboard</h2>
+</div>
+<div class="text-right">
+<span class="inline-flex items-center px-2 py-1 rounded-lg bg-surface-container-high text-on-surface-variant text-label-sm">
+<span class="material-symbols-outlined text-[16px] mr-1">location_on</span> Ward 12
+                    </span>
+</div>
+</div>
+</section>
+<!-- Complaint Status Bento Grid -->
+<section class="mb-8 bento-grid">
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant flex flex-col justify-between h-32">
+<div class="flex justify-between items-start">
+<div class="w-10 h-10 rounded-full bg-error-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-error-container">error</span>
+</div>
+<span class="font-headline-md text-headline-md text-primary">04</span>
+</div>
+<p class="font-label-md text-on-surface-variant">Open</p>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant flex flex-col justify-between h-32">
+<div class="flex justify-between items-start">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-secondary-container">check_circle</span>
+</div>
+<span class="font-headline-md text-headline-md text-primary">12</span>
+</div>
+<p class="font-label-md text-on-surface-variant">Resolved</p>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant flex flex-col justify-between h-32">
+<div class="flex justify-between items-start">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-outline">
+<span class="material-symbols-outlined">pending_actions</span>
+</div>
+<span class="font-headline-md text-headline-md text-primary">02</span>
+</div>
+<p class="font-label-md text-on-surface-variant">Pending</p>
+</div>
+</section>
+<!-- Primary Action Hub -->
+<section class="mb-8 space-y-4">
+    <div class="bg-primary-container/10 p-4 rounded-2xl border border-primary-container/20">
+        <p class="font-label-sm text-primary mb-3 uppercase tracking-wider font-bold">Important for New Citizens</p>
+        <button class="w-full h-16 bg-primary text-on-primary rounded-xl flex items-center justify-between px-6 active:scale-95 transition-transform shadow-lg shadow-primary/20">
+            <div class="flex items-center gap-4">
+                <span class="material-symbols-outlined text-[28px]">how_to_reg</span>
+                <div class="text-left">
+                    <span class="font-label-md block">Register Voter Profile</span>
+                    <span class="text-[10px] opacity-80 block font-normal">Mandatory for local body elections</span>
+                </div>
+            </div>
+            <span class="material-symbols-outlined">arrow_forward</span>
+        </button>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+        <button class="h-16 bg-white text-primary rounded-xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform border border-outline-variant shadow-sm hover:bg-surface-container-low transition-colors">
+            <span class="material-symbols-outlined">add_box</span>
+            <span class="font-label-sm">New Complaint</span>
+        </button>
+        <button class="h-16 bg-white text-primary rounded-xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform border border-outline-variant shadow-sm hover:bg-surface-container-low transition-colors">
+            <span class="material-symbols-outlined">track_changes</span>
+            <span class="font-label-sm">Track Status</span>
+        </button>
+    </div>
+</section>
+<!-- Social Work FeedSnippet -->
+<section class="mb-8">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-headline-sm text-headline-sm text-primary">Social Work Feed</h3>
+<button class="text-secondary font-label-md">View All</button>
+</div>
+<div class="flex overflow-x-auto gap-4 feed-scroll pb-2">
+<!-- Feed Item 1 -->
+<div class="min-w-[280px] bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden shadow-sm">
+<div class="h-32 bg-surface-variant relative">
+<img alt="Development project" class="w-full h-full object-cover" data-alt="A professional high-quality photograph of a newly paved community road in a bright, clean residential neighborhood. The scene is bathed in warm afternoon sunlight, emphasizing the smooth dark asphalt and crisp white road markings. In the background, modern public infrastructure and green landscaping represent urban development and progress. The lighting is soft and optimistic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCj_taAhu8r7b5EeqEpEI1lBxr_BE7jzjkSYSuxLZzJeNKfFHe1IFlXv_NwLDxZiIzZV4QfYxHpDwbnnLzoEFtRsWYRjUeEQCfJB5gr78qFhXGkUF1UnmOo38gF1OPqiWGkUoPzJehlT3j39pZCdrmRMD3AaDiXprCg8T85EzZnsHmJ0TObMot_Y60shsibKc56SO2aNrD43jqUcKQpamHQcCnXKEFqotoQKBExmfaUOp1ls2iknOViRbi9GpOiub0ebS8XpcNxzBA">
+<span class="absolute top-2 right-2 bg-secondary text-on-secondary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Infrastructure</span>
+</div>
+<div class="p-4">
+<p class="font-label-md text-on-surface mb-1">Ward 12 Road Repair Completion</p>
+<p class="font-body-sm text-on-surface-variant line-clamp-2">The main artery road for Ward 12 has been successfully resurfaced, benefiting over 500 households...</p>
+<div class="mt-3 flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full border-2 border-white bg-slate-200"></div>
+<div class="w-6 h-6 rounded-full border-2 border-white bg-slate-300"></div>
+<div class="w-6 h-6 rounded-full border-2 border-white bg-slate-400"></div>
+</div>
+<span class="text-[10px] text-outline font-medium">2 hours ago</span>
+</div>
+</div>
+</div>
+<!-- Feed Item 2 -->
+<div class="min-w-[280px] bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden shadow-sm">
+<div class="h-32 bg-surface-variant relative">
+<img alt="Health Camp" class="w-full h-full object-cover" data-alt="A bright and airy community health camp scene featuring professional medical staff in clean uniforms interacting with citizens. The environment is clean, orderly, and modern, with soft sunlight filtering through large windows. The color palette is composed of soothing whites and blues, creating an atmosphere of safety, trust, and communal care. Focus is sharp on a medical professional smiling during a consultation." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdsWkKCdU8Wpgz7XaI4PfLDdWi1wY7OFNNSRFDkA09RiwNk51oJIpW_kMflunJwMNICZ3ddIP3CdkPjjwGyIee5Ufhk0Hx38jh3qJz15WaJsOPG3PBZOQOawkRglmuz_EkRqWV-ROl6KkWixW8IcEi9Ac6CME89OeVG5xYHxL4Xqv2beQUVCtAc2YxcVVPWq2k-1EOpDxHGbczEyLYV_oDVlqefd4dpB4_hk1XaVhCEVK2Zv-MAeT1JhoCMEW-8c8L8pEcAI-PkmI">
+<span class="absolute top-2 right-2 bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Health</span>
+</div>
+<div class="p-4">
+<p class="font-label-md text-on-surface mb-1">Free Health Camp: Sunday</p>
+<p class="font-body-sm text-on-surface-variant line-clamp-2">Join us this Sunday at the Community Center for a free general checkup and vaccination drive...</p>
+<div class="mt-3 flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full border-2 border-white bg-slate-200"></div>
+<div class="w-6 h-6 rounded-full border-2 border-white bg-slate-300"></div>
+</div>
+<span class="text-[10px] text-outline font-medium">5 hours ago</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Quick Access Section -->
+<section class="mb-8">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-4">Quick Links</h3>
+<div class="grid grid-cols-4 gap-4 text-center">
+<div class="space-y-1">
+<div class="w-12 h-12 mx-auto rounded-full bg-surface-container-low flex items-center justify-center text-primary border border-outline-variant">
+<span class="material-symbols-outlined">water_drop</span>
+</div>
+<p class="text-[10px] font-medium text-on-surface-variant">Water</p>
+</div>
+<div class="space-y-1">
+<div class="w-12 h-12 mx-auto rounded-full bg-surface-container-low flex items-center justify-center text-primary border border-outline-variant">
+<span class="material-symbols-outlined">lightbulb</span>
+</div>
+<p class="text-[10px] font-medium text-on-surface-variant">Electricity</p>
+</div>
+<div class="space-y-1">
+<div class="w-12 h-12 mx-auto rounded-full bg-surface-container-low flex items-center justify-center text-primary border border-outline-variant">
+<span class="material-symbols-outlined">delete</span>
+</div>
+<p class="text-[10px] font-medium text-on-surface-variant">Waste</p>
+</div>
+<div class="space-y-1">
+<div class="w-12 h-12 mx-auto rounded-full bg-surface-container-low flex items-center justify-center text-primary border border-outline-variant">
+<span class="material-symbols-outlined">clinical_notes</span>
+</div>
+<p class="text-[10px] font-medium text-on-surface-variant">Education</p>
+</div>
+</div>
+</section>
+</main>
+<!-- AI Assistant Widget -->
+<div class="fixed bottom-20 right-4 z-[60] flex flex-col items-end" id="ai-assistant">
+<div class="hidden mb-3 max-w-[240px] glass-card p-4 rounded-2xl shadow-lg border border-primary-container/20" id="ai-bubble">
+<p class="font-body-sm text-primary font-medium mb-1">Namaste! How can I help you today?</p>
+<div class="flex flex-wrap gap-2 mt-3">
+<button class="text-[11px] bg-primary/5 text-primary px-2 py-1 rounded-full border border-primary/10">Apply for Ration Card</button>
+<button class="text-[11px] bg-primary/5 text-primary px-2 py-1 rounded-full border border-primary/10">Recent News</button>
+</div>
+</div>
+<button class="w-14 h-14 bg-primary-container text-on-primary-container rounded-full shadow-xl flex items-center justify-center active:scale-90 transition-all border-4 border-white" onclick="toggleAIBubble()">
+<span class="material-symbols-outlined text-[28px]">smart_toy</span>
+</button>
+</div>
+<!-- BottomNavBar Shell -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-surface-container-lowest border-t border-outline-variant flex justify-around items-center px-2 pb-2 pt-1 shadow-sm rounded-t-xl">
+<!-- Home (Active) -->
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1 transition-all duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</a>
+<!-- Grievance -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 active:scale-90 rounded-lg p-1" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="font-label-sm text-label-sm">Grievance</span>
+</a>
+<!-- Feed -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 active:scale-90 rounded-lg p-1" href="#">
+<span class="material-symbols-outlined">rss_feed</span>
+<span class="font-label-sm text-label-sm">Feed</span>
+</a>
+<!-- Admin -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 active:scale-90 rounded-lg p-1" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-sm text-label-sm">Admin</span>
+</a>
+</nav>
+<script>
+        function toggleAIBubble() {
+            const bubble = document.getElementById('ai-bubble');
+            if (bubble.classList.contains('hidden')) {
+                bubble.classList.remove('hidden');
+                bubble.classList.add('flex');
+            } else {
+                bubble.classList.add('hidden');
+                bubble.classList.remove('flex');
+            }
+        }
+
+        // Automatic dismissal logic for AI bubble
+        window.addEventListener('click', (e) => {
+            const assistant = document.getElementById('ai-assistant');
+            const bubble = document.getElementById('ai-bubble');
+            if (!assistant.contains(e.target)) {
+                bubble.classList.add('hidden');
+                bubble.classList.remove('flex');
+            }
+        });
+    </script>
+
+
+</body></html>
