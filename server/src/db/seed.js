@@ -50,4 +50,46 @@ async function seedAdmin(db, { ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, ADMIN_SEED
   console.log("Seeded admin staff user");
 }
 
-module.exports = { seedDepartments, seedAdmin };
+async function seedDemoStaff(db, { DEMO_STAFF_SEED_ENABLED, DEMO_STAFF_PASSWORD }) {
+  if (!DEMO_STAFF_SEED_ENABLED || !DEMO_STAFF_PASSWORD) return;
+
+  const staffCollection = db.collection("staff_users");
+  const profileCollection = db.collection("profiles");
+  const now = new Date().toISOString();
+  const passwordHash = await bcrypt.hash(DEMO_STAFF_PASSWORD, 10);
+
+  const demoAccounts = [
+    { role: "operator", email: "operator@janseva.local", name: "Demo Operator" },
+    { role: "officer", email: "officer@janseva.local", name: "Demo Officer" },
+    { role: "leader", email: "leader@janseva.local", name: "Demo Leader" },
+    { role: "admin", email: "admin@janseva.local", name: "Demo Admin" },
+  ];
+
+  for (const account of demoAccounts) {
+    const existing = await staffCollection.findOne({ email: account.email });
+    if (existing) continue;
+
+    const profileResult = await profileCollection.insertOne({
+      role: account.role,
+      full_name: account.name,
+      mobile: null,
+      email: account.email,
+      preferred_language: "en",
+      created_at: now,
+      updated_at: now,
+    });
+
+    await staffCollection.insertOne({
+      email: account.email,
+      password_hash: passwordHash,
+      role: account.role,
+      profile_id: profileResult.insertedId,
+      created_at: now,
+      updated_at: now,
+    });
+  }
+
+  console.log("Ensured demo staff accounts");
+}
+
+module.exports = { seedDepartments, seedAdmin, seedDemoStaff };

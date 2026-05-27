@@ -1,4 +1,4 @@
-export type Role = "citizen" | "operator" | "officer" | "leader";
+export type Role = "citizen" | "operator" | "officer" | "leader" | "admin";
 
 type RouteRule = RegExp;
 
@@ -17,6 +17,7 @@ export const ROLE_ROUTES: Record<Role, RouteRule[]> = {
   ],
   operator: [
     /^\/operator$/,
+    /^\/operator\/profile$/,
     /^\/register$/,
     /^\/complaints$/,
     /^\/complaints\/new$/,
@@ -24,14 +25,31 @@ export const ROLE_ROUTES: Record<Role, RouteRule[]> = {
     /^\/operator\/assign$/,
     /^\/leader\/post\/new$/,
   ],
-  officer: [/^\/officer$/, /^\/officer\/complaint\/[^/]+$/],
+  officer: [
+    /^\/officer$/,
+    /^\/officer\/queue$/,
+    /^\/officer\/profile$/,
+    /^\/officer\/complaint\/[^/]+$/,
+  ],
   leader: [
     /^\/leader$/,
+    /^\/leadership\/analytics-map$/,
+    /^\/leadership\/heatmap$/,
+    /^\/leadership\/settings$/,
+    /^\/admin$/,
+    /^\/admin\/settings$/,
+    /^\/admin\/complaint-lifecycle$/,
     /^\/leader\/post\/new$/,
     /^\/admin\/whatsapp$/,
     /^\/complaints$/,
     /^\/complaints\/[^/]+$/,
     /^\/feed$/,
+  ],
+  admin: [
+    /^\/admin$/,
+    /^\/admin\/settings$/,
+    /^\/admin\/complaint-lifecycle$/,
+    /^\/admin\/whatsapp$/,
   ],
 };
 
@@ -40,6 +58,7 @@ export const ROLE_HOME: Record<Role, string> = {
   operator: "/operator",
   officer: "/officer",
   leader: "/leader",
+  admin: "/admin/settings",
 };
 
 export function isPublicRoute(pathname: string) {

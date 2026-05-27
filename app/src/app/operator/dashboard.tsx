@@ -1,6 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
+import { logout as logoutApi } from "../../services/authService";
 import {
   Alert,
   SafeAreaView,
@@ -65,6 +66,10 @@ function LogItem({
 export default function OperatorDashboardScreen() {
   const router = useRouter();
   const { logout } = useAuth();
+  const handleLogout = async () => {
+    await logoutApi();
+    await logout();
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -85,7 +90,12 @@ export default function OperatorDashboardScreen() {
             <MaterialIcons name="translate" size={16} color="#444651" />
             <Text style={styles.langText}>English</Text>
           </TouchableOpacity>
-          <View style={styles.avatar} />
+          <TouchableOpacity
+            style={styles.iconPill}
+            onPress={() => router.push("/operator/profile" as never)}
+          >
+            <MaterialIcons name="person" size={18} color="#00236F" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -202,13 +212,7 @@ export default function OperatorDashboardScreen() {
             <MaterialIcons name="list-alt" size={18} color="#00236F" />
             <Text style={styles.quickText}>View Complaints</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickBtn}
-            onPress={() => {
-              logout();
-              router.replace("/login" as never);
-            }}
-          >
+          <TouchableOpacity style={styles.quickBtn} onPress={handleLogout}>
             <MaterialIcons name="logout" size={18} color="#BA1A1A" />
             <Text style={styles.quickText}>Logout</Text>
           </TouchableOpacity>
@@ -288,13 +292,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   langText: { color: "#444651", fontSize: 14, fontWeight: "600" },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#DFE9FA",
+  iconPill: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: "#D7DBE7",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  content: { padding: 16, gap: 14, paddingBottom: 24 },
+  content: { padding: 16, gap: 14, paddingBottom: 100 },
   alert: {
     borderWidth: 1,
     borderColor: "#BA1A1A",

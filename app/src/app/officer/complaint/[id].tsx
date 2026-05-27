@@ -1,1 +1,1 @@
-export { default } from "../complaint-view";
+export { default } from "../complaint-view-refined";

@@ -1,14 +1,18 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useMemo, useRef, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import { getCurrentProfile, verifyOtp } from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
+import { ROLE_HOME } from "../../constants/permissions";
 import {
   Alert,
   Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -23,13 +27,17 @@ export default function OtpScreen() {
     role?: string;
     devOtp?: string;
   }>();
-  const { login } = useAuth();
+  const { login, isHydrated, isLoggedIn, userRole } = useAuth();
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef<Array<TextInput | null>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const displayMobile = mobile ?? "+91 •••• ••••";
   const token = useMemo(() => otp.join(""), [otp]);
+
+  if (isHydrated && isLoggedIn && userRole) {
+    return <Redirect href={ROLE_HOME[userRole] as never} />;
+  }
 
   const handleChange = (index: number, value: string) => {
     const next = [...otp];
@@ -90,9 +98,26 @@ export default function OtpScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        style={styles.safe}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
       <Pressable style={styles.safe} onPress={Keyboard.dismiss}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/login" as never);
+            }
+          }}
+        >
           <MaterialIcons name="arrow-back" size={28} color="#0A2A82" />
         </TouchableOpacity>
         <Text style={styles.brand}>जन सेवा</Text>
@@ -178,7 +203,9 @@ export default function OtpScreen() {
           DIGITAL INDIA | GOVERNMENT OF INDIA
         </Text>
       </View>
+      </ScrollView>
       </Pressable>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 
-export default function CitizenProfileScreen() {
+export default function OperatorProfileScreen() {
   const router = useRouter();
   const { logout } = useAuth();
 
@@ -29,25 +29,26 @@ export default function CitizenProfileScreen() {
             if (router.canGoBack()) {
               router.back();
             } else {
-              router.replace("/dashboard" as never);
+              router.replace("/operator" as never);
             }
           }}
         >
           <MaterialIcons name="arrow-back" size={22} color="#00236F" />
         </TouchableOpacity>
-        <Text style={styles.title}>Citizen Profile</Text>
+        <Text style={styles.title}>Operator Profile</Text>
       </View>
 
       <View style={styles.card}>
         <View style={styles.avatar}>
-          <MaterialIcons name="person" size={48} color="#FFFFFF" />
+          <MaterialIcons name="badge" size={46} color="#FFFFFF" />
         </View>
-        <Text style={styles.name}>Citizen User</Text>
-        <Text style={styles.meta}>Role: Citizen</Text>
+        <Text style={styles.name}>Demo Operator</Text>
+        <Text style={styles.meta}>operator@janseva.local</Text>
+        <Text style={styles.meta}>Role: Operator</Text>
 
         <TouchableOpacity
           style={styles.actionBtn}
-          onPress={() => Alert.alert("Soon", "Edit profile will be added soon.")}
+          onPress={() => Alert.alert("Soon", "Profile edit coming soon.")}
         >
           <MaterialIcons name="edit" size={18} color="#00236F" />
           <Text style={styles.actionText}>Edit Profile</Text>
@@ -65,9 +66,8 @@ export default function CitizenProfileScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#F8F9FF" },
   header: {
+    height: 56,
     paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#D7DBE7",
     backgroundColor: "#FFFFFF",
@@ -79,13 +79,14 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "700", color: "#00236F" },
   card: {
     margin: 16,
-    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#D7DBE7",
+    borderRadius: 16,
     backgroundColor: "#FFFFFF",
     padding: 20,
     alignItems: "center",
     gap: 10,
+    marginBottom: 96,
   },
   avatar: {
     width: 88,
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   name: { fontSize: 20, fontWeight: "700", color: "#121C28" },
-  meta: { fontSize: 13, color: "#5A6272", marginBottom: 12 },
+  meta: { fontSize: 13, color: "#5A6272" },
   actionBtn: {
     width: "100%",
     height: 46,
@@ -109,6 +110,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
+    marginTop: 10,
   },
   actionText: { color: "#00236F", fontSize: 14, fontWeight: "600" },
   logoutBtn: {

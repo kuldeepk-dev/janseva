@@ -136,7 +136,13 @@ export default function ComplaintAssignmentScreen() {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => router.push("/operator" as never)}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/operator" as never);
+              }
+            }}
           >
             <MaterialIcons name="arrow-back" size={22} color="#00236F" />
           </TouchableOpacity>
@@ -345,7 +351,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  content: { padding: 16, gap: 12, paddingBottom: 28 },
+  content: { padding: 16, gap: 12, paddingBottom: 100 },
   titleRow: { gap: 8 },
   title: { color: "#00236F", fontSize: 28, fontWeight: "700" },
   subtitle: { color: "#444651", fontSize: 14 },

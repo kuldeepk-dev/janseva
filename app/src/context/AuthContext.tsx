@@ -5,8 +5,9 @@ type AuthContextValue = {
   userRole: Role | null;
   isLoggedIn: boolean;
   isHydrated: boolean;
+  isLoggingOut: boolean;
   login: (role: Role) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -40,6 +41,7 @@ async function getStorage() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<Role | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -56,7 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           storedRole === "citizen" ||
           storedRole === "operator" ||
           storedRole === "officer" ||
-          storedRole === "leader"
+          storedRole === "leader" ||
+          storedRole === "admin"
         ) {
           setUserRole(storedRole);
         }
@@ -82,14 +85,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   };
 
-  const logout = () => {
+  const logout = async () => {
+    setIsLoggingOut(true);
     setUserRole(null);
-    void (async () => {
+    try {
       const storage = await getStorage();
       if (storage) {
         await storage.removeItem(STORAGE_KEY);
       }
-    })();
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const value = useMemo<AuthContextValue>(
@@ -97,10 +103,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userRole,
       isLoggedIn: userRole !== null,
       isHydrated,
+      isLoggingOut,
       login,
       logout,
     }),
-    [userRole, isHydrated],
+    [userRole, isHydrated, isLoggingOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

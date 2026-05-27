@@ -1,7 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { AppBottomLayout } from "../../components/AppBottomLayout";
 import {
   Alert,
   Image,
@@ -256,8 +255,6 @@ export default function CitizenDashboardScreen() {
           </View>
         </View>
       </ScrollView>
-
-      <AppBottomLayout activeTab="home" onAiPress={() => setAiOpen(true)} />
 
       <Modal
         transparent

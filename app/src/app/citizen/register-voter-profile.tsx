@@ -98,7 +98,13 @@ export default function RegisterVoterProfileScreen() {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => router.push("/login" as never)}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/dashboard" as never);
+              }
+            }}
           >
             <MaterialIcons name="arrow-back" size={22} color="#00236F" />
           </TouchableOpacity>

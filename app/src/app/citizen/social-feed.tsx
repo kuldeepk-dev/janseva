@@ -146,7 +146,13 @@ export default function SocialFeedScreen() {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => router.push(backTarget as never)}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace(backTarget as never);
+              }
+            }}
           >
             <MaterialIcons name="arrow-back" size={22} color="#00236F" />
           </TouchableOpacity>
@@ -233,7 +239,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   langText: { fontSize: 14, color: "#00236F", fontWeight: "600" },
-  content: { padding: 16, gap: 12, paddingBottom: 24 },
+  content: { padding: 16, gap: 12, paddingBottom: 110 },
   title: { fontSize: 24, color: "#00236F", fontWeight: "700" },
   subtitle: { fontSize: 14, color: "#444651", lineHeight: 20 },
   errorText: { color: "#BA1A1A", fontSize: 12 },

@@ -230,36 +230,6 @@ export default function OfficerDashboardScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={[styles.navItem, styles.navActive]}
-          onPress={() => router.push("/officer" as never)}
-        >
-          <MaterialIcons name="home" size={20} color="#00714D" />
-          <Text style={styles.navActiveText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => Alert.alert("Queue", "Queue view coming soon.")}
-        >
-          <MaterialIcons name="assignment" size={20} color="#444651" />
-          <Text style={styles.navText}>Queue</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => Alert.alert("Stats", "Stats view coming soon.")}
-        >
-          <MaterialIcons name="analytics" size={20} color="#444651" />
-          <Text style={styles.navText}>Stats</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => Alert.alert("Profile", "Profile view coming soon.")}
-        >
-          <MaterialIcons name="person" size={20} color="#444651" />
-          <Text style={styles.navText}>Profile</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -425,27 +395,4 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   activityTime: { color: "#757682", fontSize: 11, marginTop: 4 },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 72,
-    borderTopWidth: 1,
-    borderTopColor: "#C5C5D3",
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 8,
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  navActive: { backgroundColor: "#6CF8BB", borderRadius: 16 },
-  navText: { color: "#444651", fontSize: 12, fontWeight: "500" },
-  navActiveText: { color: "#00714D", fontSize: 12, fontWeight: "700" },
 });

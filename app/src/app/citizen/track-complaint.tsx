@@ -141,7 +141,13 @@ export default function TrackComplaintScreen() {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => router.push("/dashboard" as never)}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/dashboard" as never);
+              }
+            }}
           >
             <MaterialIcons name="arrow-back" size={22} color="#00236F" />
           </TouchableOpacity>
@@ -157,10 +163,7 @@ export default function TrackComplaintScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Track Complaint</Text>
         <Text style={styles.subtitle}>
           Search complaint ID and monitor status updates in real time.
@@ -268,7 +271,7 @@ const styles = StyleSheet.create({
   brand: { fontSize: 20, color: "#00236F", fontWeight: "700" },
   langBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   langText: { fontSize: 14, color: "#00236F", fontWeight: "600" },
-  content: { padding: 16, gap: 12, paddingBottom: 30 },
+  content: { padding: 16, gap: 12, paddingBottom: 110 },
   title: { fontSize: 24, color: "#121C28", fontWeight: "600" },
   subtitle: { fontSize: 14, color: "#444651", lineHeight: 20 },
   errorText: { color: "#BA1A1A", fontSize: 12 },

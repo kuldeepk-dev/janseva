@@ -1,12 +1,18 @@
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import { signInStaff, signInWithOtp } from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
+import { ROLE_HOME } from "../../constants/permissions";
 import {
   Alert,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,11 +20,20 @@ import {
   View,
 } from "react-native";
 
-type Role = "citizen" | "operator" | "officer" | "leader";
+type Role = "citizen" | "operator" | "officer" | "leader" | "admin";
+const DEMO_ROLE_CREDENTIALS: Record<
+  Exclude<Role, "citizen">,
+  { email: string; password: string }
+> = {
+  operator: { email: "operator@janseva.local", password: "Demo@12345" },
+  officer: { email: "officer@janseva.local", password: "Demo@12345" },
+  leader: { email: "leader@janseva.local", password: "Demo@12345" },
+  admin: { email: "admin@janseva.local", password: "Demo@12345" },
+};
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, isHydrated, isLoggedIn, userRole } = useAuth();
   const [role, setRole] = useState<Role>("citizen");
   const [isNewCitizen, setIsNewCitizen] = useState(false);
   const [mobile, setMobile] = useState("");
@@ -27,8 +42,7 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const toAppRole = (value: string): Role =>
-    value === "admin" ? "leader" : (value as Role);
+  const toAppRole = (value: string): Role => value as Role;
   const roleLabel = useMemo(() => {
     switch (role) {
       case "operator":
@@ -37,10 +51,27 @@ export default function LoginScreen() {
         return "Officer";
       case "leader":
         return "Leadership";
+      case "admin":
+        return "Admin";
       default:
         return "Citizen";
     }
   }, [role]);
+
+  if (isHydrated && isLoggedIn && userRole) {
+    return <Redirect href={ROLE_HOME[userRole] as never} />;
+  }
+
+  const handleRoleChange = (nextRole: Role) => {
+    setRole(nextRole);
+    if (nextRole === "citizen") {
+      setStaffEmail("");
+      setStaffPassword("");
+      return;
+    }
+    setStaffEmail(DEMO_ROLE_CREDENTIALS[nextRole].email);
+    setStaffPassword(DEMO_ROLE_CREDENTIALS[nextRole].password);
+  };
 
   const handlePrimary = async () => {
     setError(null);
@@ -61,9 +92,13 @@ export default function LoginScreen() {
         if (otpResult.devOtp) {
           Alert.alert("Dev OTP", `Use OTP: ${otpResult.devOtp}`);
         }
-        router.push({
+        router.replace({
           pathname: "/otp",
-          params: { mobile: mobile.trim(), role, devOtp: otpResult.devOtp ?? "" },
+          params: {
+            mobile: mobile.trim(),
+            role,
+            devOtp: otpResult.devOtp ?? "",
+          },
         } as never);
       } catch (err) {
         const message =
@@ -90,7 +125,9 @@ export default function LoginScreen() {
         const result = await signInStaff(staffEmail.trim(), staffPassword);
         const resolvedRole = toAppRole(result.profile.role ?? "operator");
         login(resolvedRole);
-        router.replace("/operator" as never);
+        router.replace(
+          (resolvedRole === "admin" ? "/admin/settings" : "/operator") as never,
+        );
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Staff login failed.";
@@ -116,7 +153,9 @@ export default function LoginScreen() {
         const result = await signInStaff(staffEmail.trim(), staffPassword);
         const resolvedRole = toAppRole(result.profile.role ?? "officer");
         login(resolvedRole);
-        router.replace("/officer" as never);
+        router.replace(
+          (resolvedRole === "admin" ? "/admin/settings" : "/officer") as never,
+        );
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Staff login failed.";
@@ -141,7 +180,9 @@ export default function LoginScreen() {
       const result = await signInStaff(staffEmail.trim(), staffPassword);
       const resolvedRole = toAppRole(result.profile.role ?? "leader");
       login(resolvedRole);
-      router.replace("/leader" as never);
+      router.replace(
+        (resolvedRole === "admin" ? "/admin/settings" : "/leader") as never,
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Staff login failed.";
@@ -153,226 +194,244 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.page}>
-        <View style={styles.bgCircleTop} />
-        <View style={styles.bgCircleBottom} />
-
-        <View style={styles.langWrap}>
-          <TouchableOpacity
-            style={styles.langChip}
-            onPress={() =>
-              Alert.alert("Language", "Language picker coming soon.")
-            }
+      <KeyboardAvoidingView
+        style={styles.safe}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <Pressable style={styles.safe} onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.page}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.langText}>🌐 English</Text>
-          </TouchableOpacity>
-        </View>
+            <View style={styles.bgCircleTop} />
+            <View style={styles.bgCircleBottom} />
 
-        <View style={styles.card}>
-          <View style={styles.identity}>
-            <Image
-              source={{
-                uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuB3KCLAm_bp4r3Smg7u6y5K60YihOKySrMW6Nf0miuTIwhG5wiYywI3wl4OZtiv3bJqgIie1Q3kKxBhXw1OMnj1flaRGTv0Gfi9jBTyq3dqWlXIk7mBmgqSY83EZMR6xhMYoO71gdqsYrKlsEbaynvd7JqlRr73Ae3QKWpCDOmf7i2tThiFsO3chNQGV_u-Ns9IWMRSTZ_WbJ2BIyMcOTg38MuPl7WTNYa4BZl_--FtFQKlHpTfngMGmVfD11NuyhrS7XGYlyRF4TY",
-              }}
-              style={styles.emblem}
-            />
-            <Text style={styles.brand}>जन सेवा</Text>
-            <Text style={styles.subtitle}>
-              Empowering Citizens through Digital Services
-            </Text>
-          </View>
-
-          {role === "citizen" ? (
-            <>
-              <Text style={styles.label}>Mobile Number</Text>
-              <View style={styles.inputWrap}>
-                <Text style={styles.prefix}>+91</Text>
-                <TextInput
-                  placeholder="Enter 10-digit number"
-                  keyboardType="phone-pad"
-                  style={styles.input}
-                  maxLength={10}
-                  value={mobile}
-                  onChangeText={setMobile}
-                />
+            <View style={styles.card}>
+              <View style={styles.langWrap}>
+                <TouchableOpacity
+                  style={styles.langChip}
+                  onPress={() =>
+                    Alert.alert("Language", "Language picker coming soon.")
+                  }
+                >
+                  <Text style={styles.langText}>🌐 English</Text>
+                </TouchableOpacity>
               </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.label}>Staff Email</Text>
-              <TextInput
-                placeholder="Enter staff email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                style={styles.input}
-                value={staffEmail}
-                onChangeText={setStaffEmail}
-              />
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                placeholder="Enter password"
-                secureTextEntry
-                style={styles.input}
-                value={staffPassword}
-                onChangeText={setStaffPassword}
-              />
-            </>
-          )}
+              <View style={styles.identity}>
+                <Image
+                  source={{
+                    uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuB3KCLAm_bp4r3Smg7u6y5K60YihOKySrMW6Nf0miuTIwhG5wiYywI3wl4OZtiv3bJqgIie1Q3kKxBhXw1OMnj1flaRGTv0Gfi9jBTyq3dqWlXIk7mBmgqSY83EZMR6xhMYoO71gdqsYrKlsEbaynvd7JqlRr73Ae3QKWpCDOmf7i2tThiFsO3chNQGV_u-Ns9IWMRSTZ_WbJ2BIyMcOTg38MuPl7WTNYa4BZl_--FtFQKlHpTfngMGmVfD11NuyhrS7XGYlyRF4TY",
+                  }}
+                  style={styles.emblem}
+                />
+                <Text style={styles.brand}>जन सेवा</Text>
+                <Text style={styles.subtitle}>
+                  Empowering Citizens through Digital Services
+                </Text>
+              </View>
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {role === "citizen" ? (
+                <>
+                  <Text style={styles.label}>Mobile Number</Text>
+                  <View style={styles.inputWrap}>
+                    <Text style={styles.prefix}>+91</Text>
+                    <TextInput
+                      placeholder="Enter 10-digit number"
+                      keyboardType="phone-pad"
+                      style={styles.input}
+                      maxLength={10}
+                      value={mobile}
+                      onChangeText={setMobile}
+                    />
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput
+                    placeholder="Enter staff email"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={styles.input}
+                    value={staffEmail}
+                    onChangeText={setStaffEmail}
+                  />
+                  <Text style={styles.label}>Password</Text>
+                  <TextInput
+                    placeholder="Enter password"
+                    secureTextEntry
+                    style={styles.input}
+                    value={staffPassword}
+                    onChangeText={setStaffPassword}
+                  />
+                </>
+              )}
 
-          <View style={styles.roleRow}>
-            {(["citizen", "operator", "officer", "leader"] as Role[]).map(
-              item => {
-                const active = role === item;
-                return (
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+              <View style={styles.roleRow}>
+                {(
+                  [
+                    "citizen",
+                    "operator",
+                    "officer",
+                    "leader",
+                    "admin",
+                  ] as Role[]
+                ).map(item => {
+                  const active = role === item;
+                  return (
+                    <TouchableOpacity
+                      key={item}
+                      style={[styles.roleChip, active && styles.roleChipActive]}
+                      onPress={() => handleRoleChange(item)}
+                    >
+                      <Text
+                        style={[
+                          styles.roleChipText,
+                          active && styles.roleChipTextActive,
+                        ]}
+                      >
+                        {item === "leader"
+                          ? "Leadership"
+                          : item.charAt(0).toUpperCase() + item.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {role === "citizen" ? (
+                <View style={styles.citizenRow}>
                   <TouchableOpacity
-                    key={item}
-                    style={[styles.roleChip, active && styles.roleChipActive]}
-                    onPress={() => setRole(item)}
+                    style={[
+                      styles.citizenToggle,
+                      !isNewCitizen && styles.citizenToggleActive,
+                    ]}
+                    onPress={() => setIsNewCitizen(false)}
                   >
                     <Text
                       style={[
-                        styles.roleChipText,
-                        active && styles.roleChipTextActive,
+                        styles.citizenToggleText,
+                        !isNewCitizen && styles.citizenToggleTextActive,
                       ]}
                     >
-                      {item === "leader"
-                        ? "Leadership"
-                        : item.charAt(0).toUpperCase() + item.slice(1)}
+                      Registered
                     </Text>
                   </TouchableOpacity>
-                );
-              },
-            )}
-          </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.citizenToggle,
+                      isNewCitizen && styles.citizenToggleActive,
+                    ]}
+                    onPress={() => setIsNewCitizen(true)}
+                  >
+                    <Text
+                      style={[
+                        styles.citizenToggleText,
+                        isNewCitizen && styles.citizenToggleTextActive,
+                      ]}
+                    >
+                      New Mobile
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
 
-          {role === "citizen" ? (
-            <View style={styles.citizenRow}>
               <TouchableOpacity
-                style={[
-                  styles.citizenToggle,
-                  !isNewCitizen && styles.citizenToggleActive,
-                ]}
-                onPress={() => setIsNewCitizen(false)}
+                style={styles.primaryBtn}
+                onPress={handlePrimary}
+                disabled={isLoading}
               >
-                <Text
-                  style={[
-                    styles.citizenToggleText,
-                    !isNewCitizen && styles.citizenToggleTextActive,
-                  ]}
-                >
-                  Registered
+                <Text style={styles.primaryBtnText}>
+                  {isLoading ? "Sending OTP..." : `${roleLabel} Continue`}
                 </Text>
+                <Text style={styles.btnIcon}>→</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
-                style={[
-                  styles.citizenToggle,
-                  isNewCitizen && styles.citizenToggleActive,
-                ]}
-                onPress={() => setIsNewCitizen(true)}
-              >
-                <Text
-                  style={[
-                    styles.citizenToggleText,
-                    isNewCitizen && styles.citizenToggleTextActive,
-                  ]}
-                >
-                  New Mobile
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={handlePrimary}
-            disabled={isLoading}
-          >
-            <Text style={styles.primaryBtnText}>
-              {isLoading ? "Sending OTP..." : `${roleLabel} Continue`}
-            </Text>
-            <Text style={styles.btnIcon}>→</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.linkBtn}
-            onPress={() =>
-              router.push({
-                pathname: "/feed",
-                params: { role: "public" },
-              } as never)
-            }
-          >
-            <Text style={styles.linkText}>Public Social Feed</Text>
-          </TouchableOpacity>
-
-          <View style={styles.orRow}>
-            <View style={styles.line} />
-            <Text style={styles.orText}>OR</Text>
-            <View style={styles.line} />
-          </View>
-
-          <View style={styles.altRow}>
-            <TouchableOpacity
-              style={styles.altBtn}
-              onPress={() =>
-                Alert.alert("Biometric", "Biometric login is a placeholder.")
-              }
-            >
-              <Text style={styles.altText}>Biometric</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.altBtn}
-              onPress={() =>
-                Alert.alert("QR Login", "QR login is a placeholder.")
-              }
-            >
-              <Text style={styles.altText}>QR Login</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.footer}>
-            <View style={styles.footerLogos}>
-              <Image
-                source={{
-                  uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuBcYdx_P2_7Ttha-Crwo5rgs-wx2KXUw3oKVwUEc-AscuXVgoZfQ89hB077-6Vv4Vdp4B8irnjlyyHmM0OLlh_rviTlof9ZH8KB0gB6WLTbt5L8MerrWImHbCiCjP8-_CtEkHPI9mzOsahqoZ1p2_e4x2s-M75UGc-GSadGMjpazVq2CYivZT0MeUDxQLq1isGjVwrfZ69clRfVFJEirGmEiEXuV5qR6ZK60iHkJxdhvYkW_amEVGzrl9bgHObdNTPqOme5SEy5Xq0",
-                }}
-                style={styles.footerLogo}
-              />
-              <Image
-                source={{
-                  uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDnZGong7NvNHzgBUaIMgEnmdODekQaNfjsdq8h9bh52aoiJUhsE7n5qn7xFN5KjKkc-AZObR_Yz3wOIXwP4qosKQtzWppQdOATOhILI-RQJun4e7x3kOxd6jH3pm5qOfTdJ9TzfuVr6s9pCeShsHggnPvlM6PaX3sjWTAzXRzmiY9Ivo16U-_zZQqlpC4E1OeiNuVmeyhBFWk3ssGmwnjqdtRjSxpxrGr4HhhRmgYmPXiLYvQPerUSEQKjkZOsPty38SWCYFNuuN0",
-                }}
-                style={styles.footerLogo}
-              />
-            </View>
-            <Text style={styles.secured}>
-              SECURED BY NATIONAL INFORMATICS CENTRE
-            </Text>
-            <View style={styles.helpRow}>
-              <TouchableOpacity
+                style={styles.linkBtn}
                 onPress={() =>
-                  Alert.alert("Help", "Support contact coming soon.")
+                  router.push({
+                    pathname: "/feed",
+                    params: { role: "public" },
+                  } as never)
                 }
               >
-                <Text style={styles.helpText}>Need Help?</Text>
+                <Text style={styles.linkText}>Public Social Feed</Text>
               </TouchableOpacity>
-              <Text style={styles.helpDivider}>|</Text>
-              <TouchableOpacity
-                onPress={() =>
-                  Alert.alert(
-                    "Accessibility",
-                    "Accessibility options coming soon.",
-                  )
-                }
-              >
-                <Text style={styles.helpText}>Accessibility</Text>
-              </TouchableOpacity>
+
+              <View style={styles.orRow}>
+                <View style={styles.line} />
+                <Text style={styles.orText}>OR</Text>
+                <View style={styles.line} />
+              </View>
+
+              <View style={styles.altRow}>
+                <TouchableOpacity
+                  style={styles.altBtn}
+                  onPress={() =>
+                    Alert.alert(
+                      "Biometric",
+                      "Biometric login is a placeholder.",
+                    )
+                  }
+                >
+                  <Text style={styles.altText}>Biometric</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.altBtn}
+                  onPress={() =>
+                    Alert.alert("QR Login", "QR login is a placeholder.")
+                  }
+                >
+                  <Text style={styles.altText}>QR Login</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.footer}>
+                <View style={styles.footerLogos}>
+                  <Image
+                    source={{
+                      uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuBcYdx_P2_7Ttha-Crwo5rgs-wx2KXUw3oKVwUEc-AscuXVgoZfQ89hB077-6Vv4Vdp4B8irnjlyyHmM0OLlh_rviTlof9ZH8KB0gB6WLTbt5L8MerrWImHbCiCjP8-_CtEkHPI9mzOsahqoZ1p2_e4x2s-M75UGc-GSadGMjpazVq2CYivZT0MeUDxQLq1isGjVwrfZ69clRfVFJEirGmEiEXuV5qR6ZK60iHkJxdhvYkW_amEVGzrl9bgHObdNTPqOme5SEy5Xq0",
+                    }}
+                    style={styles.footerLogo}
+                  />
+                  <Image
+                    source={{
+                      uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDnZGong7NvNHzgBUaIMgEnmdODekQaNfjsdq8h9bh52aoiJUhsE7n5qn7xFN5KjKkc-AZObR_Yz3wOIXwP4qosKQtzWppQdOATOhILI-RQJun4e7x3kOxd6jH3pm5qOfTdJ9TzfuVr6s9pCeShsHggnPvlM6PaX3sjWTAzXRzmiY9Ivo16U-_zZQqlpC4E1OeiNuVmeyhBFWk3ssGmwnjqdtRjSxpxrGr4HhhRmgYmPXiLYvQPerUSEQKjkZOsPty38SWCYFNuuN0",
+                    }}
+                    style={styles.footerLogo}
+                  />
+                </View>
+                <Text style={styles.secured}>
+                  SECURED BY NATIONAL INFORMATICS CENTRE
+                </Text>
+                <View style={styles.helpRow}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      Alert.alert("Help", "Support contact coming soon.")
+                    }
+                  >
+                    <Text style={styles.helpText}>Need Help?</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.helpDivider}>|</Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      Alert.alert(
+                        "Accessibility",
+                        "Accessibility options coming soon.",
+                      )
+                    }
+                  >
+                    <Text style={styles.helpText}>Accessibility</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
-      </View>
+          </ScrollView>
+        </Pressable>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -405,7 +464,7 @@ const styles = StyleSheet.create({
     left: -90,
     opacity: 0.55,
   },
-  langWrap: { position: "absolute", top: 16, right: 16, zIndex: 2 },
+  langWrap: { position: "absolute", top: 16, right: 0, zIndex: 2 },
   langChip: {
     backgroundColor: "#fff",
     borderColor: "#C5C5D3",

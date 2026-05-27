@@ -153,7 +153,13 @@ export default function ComplaintLifecycleScreen() {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => router.push("/complaints" as never)}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/complaints" as never);
+              }
+            }}
           >
             <MaterialIcons name="arrow-back" size={22} color="#00236F" />
           </TouchableOpacity>
@@ -340,36 +346,6 @@ export default function ComplaintLifecycleScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/dashboard" as never)}
-        >
-          <MaterialIcons name="home" size={20} color="#444651" />
-          <Text style={styles.navText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => Alert.alert("Services", "Services hub coming soon.")}
-        >
-          <MaterialIcons name="grid-view" size={20} color="#444651" />
-          <Text style={styles.navText}>Services</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.navItem, styles.activeNav]}
-          onPress={() => router.push("/complaints" as never)}
-        >
-          <MaterialIcons name="report-problem" size={20} color="#90A8FF" />
-          <Text style={styles.activeNavText}>Complaints</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => Alert.alert("Profile", "Profile view coming soon.")}
-        >
-          <MaterialIcons name="person" size={20} color="#444651" />
-          <Text style={styles.navText}>Profile</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -397,7 +373,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   langText: { color: "#444651", fontSize: 12, fontWeight: "600" },
-  content: { padding: 16, paddingBottom: 96, gap: 10 },
+  content: { padding: 16, paddingBottom: 120, gap: 10 },
   breadcrumb: { color: "#757682", fontSize: 12 },
   title: { color: "#121C28", fontSize: 27, fontWeight: "700" },
   sub: { color: "#444651", fontSize: 14, marginTop: -2 },
@@ -634,27 +610,4 @@ const styles = StyleSheet.create({
     borderColor: "#C5C5D3",
     padding: 10,
   },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 72,
-    borderTopWidth: 1,
-    borderTopColor: "#C5C5D3",
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 8,
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  navText: { color: "#444651", fontSize: 11, fontWeight: "500" },
-  activeNav: { backgroundColor: "#1E3A8A", borderRadius: 16 },
-  activeNavText: { color: "#90A8FF", fontSize: 11, fontWeight: "700" },
 });

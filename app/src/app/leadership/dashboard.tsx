@@ -329,7 +329,7 @@ export default function LeadershipDashboardScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => Alert.alert("Menu", "Menu options coming soon.")}
+          onPress={() => router.replace("/admin/whatsapp" as never)}
         >
           <MaterialIcons name="menu" size={20} color="#444651" />
           <Text style={styles.navText}>Menu</Text>

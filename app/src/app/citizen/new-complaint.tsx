@@ -96,7 +96,15 @@ export default function NewComplaintScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => router.push("/dashboard" as never)}>
+          <TouchableOpacity
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/dashboard" as never);
+              }
+            }}
+          >
             <MaterialIcons name="arrow-back" size={22} color="#00236F" />
           </TouchableOpacity>
           <Text style={styles.brand}>जन सेवा</Text>
@@ -251,7 +259,7 @@ const styles = StyleSheet.create({
   brand: { color: "#00236F", fontSize: 20, fontWeight: "700" },
   langBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   langText: { color: "#00236F", fontSize: 14, fontWeight: "600" },
-  content: { padding: 16, paddingBottom: 96, gap: 12 },
+  content: { padding: 16, paddingBottom: 180, gap: 12 },
   title: { fontSize: 24, color: "#121C28", fontWeight: "600" },
   subtitle: { fontSize: 14, color: "#444651", lineHeight: 20, marginBottom: 4 },
   errorText: { color: "#BA1A1A", fontSize: 12 },
@@ -356,7 +364,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: 64,
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#C5C5D3",

@@ -91,9 +91,7 @@ export default function AdminSettingsScreen() {
             title="Complaint Routing Matrix"
             desc="Set automated logic for grievance escalation based on department, urgency, and geography."
             action="Define Workflows"
-            onPress={() =>
-              Alert.alert("Routing", "Routing configuration is a placeholder.")
-            }
+            onPress={() => router.push("/admin/complaint-lifecycle" as never)}
           />
           <ConfigCard
             icon="translate"
@@ -167,10 +165,10 @@ export default function AdminSettingsScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => router.push("/complaints" as never)}
+          onPress={() => router.push("/admin/complaint-lifecycle" as never)}
         >
-          <MaterialIcons name="description" size={20} color="#444651" />
-          <Text style={styles.navText}>Grievance</Text>
+          <MaterialIcons name="report-problem" size={20} color="#444651" />
+          <Text style={styles.navText}>Complaints</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navItem}

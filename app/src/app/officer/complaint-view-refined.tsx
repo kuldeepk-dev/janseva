@@ -49,14 +49,17 @@ export default function OfficerComplaintViewRefinedScreen() {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.menuBtn}
-            onPress={() => router.push("/officer" as never)}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/officer/queue" as never);
+              }
+            }}
           >
-            <MaterialIcons name="menu" size={22} color="#00236F" />
+            <MaterialIcons name="arrow-back" size={22} color="#00236F" />
           </TouchableOpacity>
-          <Text style={styles.brand}>Jan Seva Portal</Text>
-        </View>
-        <View style={styles.avatar}>
-          <MaterialIcons name="person" size={20} color="#264191" />
+          <Text style={styles.idTitle}>Complaint #INC-2023-8842</Text>
         </View>
       </View>
 
@@ -64,14 +67,9 @@ export default function OfficerComplaintViewRefinedScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.breadcrumb}>
-          Dashboard › Queues › Complaint Details
-        </Text>
-
         <View style={styles.heroRow}>
           <View style={{ flex: 1 }}>
             <View style={styles.heroBadges}>
-              <Text style={styles.idTitle}>Complaint #INC-2023-8842</Text>
               <View style={styles.badgeUrgent}>
                 <Text style={styles.badgeUrgentText}>URGENT</Text>
               </View>
@@ -232,37 +230,6 @@ export default function OfficerComplaintViewRefinedScreen() {
           />
         </View>
       </ScrollView>
-
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={[styles.navItem, styles.navActive]}
-          onPress={() => router.push("/officer" as never)}
-        >
-          <MaterialIcons name="list-alt" size={20} color="#264191" />
-          <Text style={styles.navActiveText}>Queues</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => Alert.alert("Stats", "Stats view coming soon.")}
-        >
-          <MaterialIcons name="bar-chart" size={20} color="#444651" />
-          <Text style={styles.navText}>Stats</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => Alert.alert("Reports", "Reports view coming soon.")}
-        >
-          <MaterialIcons name="description" size={20} color="#444651" />
-          <Text style={styles.navText}>Reports</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => Alert.alert("Profile", "Profile view coming soon.")}
-        >
-          <MaterialIcons name="account-circle" size={20} color="#444651" />
-          <Text style={styles.navText}>Profile</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -287,7 +254,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  brand: { color: "#00236F", fontSize: 22, fontWeight: "700" },
   avatar: {
     width: 36,
     height: 36,
@@ -307,7 +273,7 @@ const styles = StyleSheet.create({
   },
   idTitle: {
     color: "#00236F",
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "700",
     marginRight: 6,
   },
@@ -516,27 +482,4 @@ const styles = StyleSheet.create({
   historyTitle: { color: "#121C28", fontSize: 13, fontWeight: "700" },
   historySubtitle: { color: "#444651", fontSize: 12 },
   historyExtra: { color: "#757682", fontSize: 11, marginTop: 1 },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 72,
-    borderTopWidth: 1,
-    borderTopColor: "#C5C5D3",
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 8,
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  navActive: { backgroundColor: "#DCE1FF", borderRadius: 16 },
-  navText: { color: "#444651", fontSize: 12, fontWeight: "500" },
-  navActiveText: { color: "#264191", fontSize: 12, fontWeight: "700" },
 });

@@ -8,6 +8,8 @@ const DEV_OTP_ECHO = process.env.DEV_OTP_ECHO === "true";
 const ADMIN_SEED_EMAIL = process.env.ADMIN_SEED_EMAIL;
 const ADMIN_SEED_PASSWORD = process.env.ADMIN_SEED_PASSWORD;
 const ADMIN_SEED_NAME = process.env.ADMIN_SEED_NAME || "Admin";
+const DEMO_STAFF_SEED_ENABLED = process.env.DEMO_STAFF_SEED_ENABLED !== "false";
+const DEMO_STAFF_PASSWORD = process.env.DEMO_STAFF_PASSWORD || "Demo@12345";
 const UPLOADS_DIR = path.join(__dirname, "..", "..", "uploads");
 
 module.exports = {
@@ -19,5 +21,7 @@ module.exports = {
   ADMIN_SEED_EMAIL,
   ADMIN_SEED_PASSWORD,
   ADMIN_SEED_NAME,
+  DEMO_STAFF_SEED_ENABLED,
+  DEMO_STAFF_PASSWORD,
   UPLOADS_DIR,
 };
