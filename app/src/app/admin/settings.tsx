@@ -1,5 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useAuth } from "../../context/AuthContext";
 import {
   Alert,
   SafeAreaView,
@@ -44,6 +45,14 @@ function ConfigCard({
 
 export default function AdminSettingsScreen() {
   const router = useRouter();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", style: "destructive", onPress: () => void logout() },
+    ]);
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -74,6 +83,24 @@ export default function AdminSettingsScreen() {
             Manage core parameters, user access, and notification protocols for
             the constituency portal.
           </Text>
+        </View>
+
+        <View style={styles.profileCard}>
+          <View style={styles.profileHeader}>
+            <View style={styles.profileAvatar}>
+              <MaterialIcons name="person" size={20} color="#FFFFFF" />
+            </View>
+            <View>
+              <Text style={styles.profileName}>Admin User</Text>
+              <Text style={styles.profileRole}>System Administrator</Text>
+            </View>
+          </View>
+          <View style={styles.profileActions}>
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+              <MaterialIcons name="logout" size={18} color="#B3261E" />
+              <Text style={styles.logoutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.grid}>
@@ -154,37 +181,6 @@ export default function AdminSettingsScreen() {
           </View>
         </View>
       </ScrollView>
-
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/leader" as never)}
-        >
-          <MaterialIcons name="dashboard" size={20} color="#444651" />
-          <Text style={styles.navText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/admin/complaint-lifecycle" as never)}
-        >
-          <MaterialIcons name="report-problem" size={20} color="#444651" />
-          <Text style={styles.navText}>Complaints</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/feed" as never)}
-        >
-          <MaterialIcons name="rss-feed" size={20} color="#444651" />
-          <Text style={styles.navText}>Feed</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.navItem, styles.activeNav]}
-          onPress={() => router.push("/admin/whatsapp" as never)}
-        >
-          <MaterialIcons name="settings" size={20} color="#00714D" />
-          <Text style={styles.activeNavText}>Admin</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -224,6 +220,38 @@ const styles = StyleSheet.create({
   pageTitle: { color: "#121C28", fontSize: 24, fontWeight: "700" },
   pageSub: { color: "#444651", fontSize: 14, lineHeight: 20 },
   grid: { gap: 10 },
+  profileCard: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 12,
+    padding: 14,
+    gap: 12,
+  },
+  profileHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  profileAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#00236F",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileName: { color: "#121C28", fontSize: 16, fontWeight: "700" },
+  profileRole: { color: "#444651", fontSize: 12, marginTop: 2 },
+  profileActions: { flexDirection: "row", justifyContent: "flex-end" },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#F4C7C3",
+    backgroundColor: "#FFF1F1",
+  },
+  logoutText: { color: "#B3261E", fontSize: 12, fontWeight: "700" },
   configCard: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,

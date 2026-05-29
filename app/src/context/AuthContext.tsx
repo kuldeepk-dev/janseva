@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Role } from "../constants/permissions";
+import { logout as clearSession } from "../services/authService";
 
 type AuthContextValue = {
   userRole: Role | null;
@@ -89,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoggingOut(true);
     setUserRole(null);
     try {
+      await clearSession();
       const storage = await getStorage();
       if (storage) {
         await storage.removeItem(STORAGE_KEY);

@@ -6,6 +6,7 @@ export type Voter = {
   full_name: string | null;
   father_name: string | null;
   dob: string | null;
+  mobile: string | null;
   voter_id: string | null;
   occupation: string | null;
   gender: string | null;

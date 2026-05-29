@@ -1,7 +1,11 @@
 import { Redirect, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { apiConfigError } from "../../lib/api";
-import { signInStaff, signInWithOtp } from "../../services/authService";
+import {
+  getCurrentProfile,
+  signInStaff,
+  verifyOtp,
+} from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
 import { ROLE_HOME } from "../../constants/permissions";
 import {
@@ -21,6 +25,8 @@ import {
 } from "react-native";
 
 type Role = "citizen" | "operator" | "officer" | "leader" | "admin";
+const DEMO_CITIZEN_MOBILE = "9999999999";
+const DEMO_CITIZEN_OTP = "123456";
 const DEMO_ROLE_CREDENTIALS: Record<
   Exclude<Role, "citizen">,
   { email: string; password: string }
@@ -36,7 +42,7 @@ export default function LoginScreen() {
   const { login, isHydrated, isLoggedIn, userRole } = useAuth();
   const [role, setRole] = useState<Role>("citizen");
   const [isNewCitizen, setIsNewCitizen] = useState(false);
-  const [mobile, setMobile] = useState("");
+  const [mobile, setMobile] = useState(DEMO_CITIZEN_MOBILE);
   const [staffEmail, setStaffEmail] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -65,6 +71,7 @@ export default function LoginScreen() {
   const handleRoleChange = (nextRole: Role) => {
     setRole(nextRole);
     if (nextRole === "citizen") {
+      setMobile(DEMO_CITIZEN_MOBILE);
       setStaffEmail("");
       setStaffPassword("");
       return;
@@ -82,27 +89,20 @@ export default function LoginScreen() {
         router.replace((isNewCitizen ? "/register" : "/dashboard") as never);
         return;
       }
-      if (!mobile || mobile.trim().length < 10) {
-        setError("Enter a valid 10-digit mobile number.");
-        return;
-      }
       setIsLoading(true);
       try {
-        const otpResult = await signInWithOtp(mobile.trim());
-        if (otpResult.devOtp) {
-          Alert.alert("Dev OTP", `Use OTP: ${otpResult.devOtp}`);
+        const result = await verifyOtp(mobile.trim(), DEMO_CITIZEN_OTP);
+        const profile = result.profile ?? (await getCurrentProfile());
+        const resolvedRole = toAppRole(profile?.role ?? "citizen");
+        login(resolvedRole);
+        if (resolvedRole === "citizen" && !profile) {
+          router.replace("/register" as never);
+        } else {
+          router.replace("/dashboard" as never);
         }
-        router.replace({
-          pathname: "/otp",
-          params: {
-            mobile: mobile.trim(),
-            role,
-            devOtp: otpResult.devOtp ?? "",
-          },
-        } as never);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "OTP login failed.";
+          err instanceof Error ? err.message : "Citizen login failed.";
         setError(message);
       } finally {
         setIsLoading(false);
@@ -243,6 +243,7 @@ export default function LoginScreen() {
                       maxLength={10}
                       value={mobile}
                       onChangeText={setMobile}
+                      editable={false}
                     />
                   </View>
                 </>

@@ -1,10 +1,15 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiConfigError } from "../../lib/api";
-import { createVoter } from "../../services/voterService";
+import { getCurrentProfile } from "../../services/authService";
+import { createVoter, getMyVoter } from "../../services/voterService";
 import {
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -57,6 +62,46 @@ export default function RegisterVoterProfileScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    let isActive = true;
+    const load = async () => {
+      if (apiConfigError) {
+        return;
+      }
+      try {
+        const [voter, profile] = await Promise.all([
+          getMyVoter(),
+          getCurrentProfile(),
+        ]);
+        if (!isActive) {
+          return;
+        }
+        if (voter) {
+          setFullName(voter.full_name ?? "");
+          setFatherName(voter.father_name ?? "");
+          setDob(voter.dob ?? "");
+          setMobile(voter.mobile ?? profile?.mobile ?? "");
+          setVoterId(voter.voter_id ?? "");
+          setBoothNumber(voter.booth_number ?? "");
+          setOccupation(voter.occupation ?? "");
+          setVillage(voter.village ?? "");
+          setPanchayat(voter.panchayat ?? "");
+        } else if (profile?.mobile) {
+          setMobile(profile.mobile);
+        }
+      } catch {
+        if (!isActive) {
+          return;
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
   const handleSubmit = async () => {
     setError(null);
     if (apiConfigError) {
@@ -75,6 +120,7 @@ export default function RegisterVoterProfileScreen() {
         full_name: fullName.trim(),
         father_name: fatherName.trim() || null,
         dob: dob.trim() || null,
+        mobile: mobile.trim() || null,
         voter_id: voterId.trim() || null,
         booth_number: boothNumber.trim() || null,
         occupation: occupation.trim() || null,
@@ -123,219 +169,232 @@ export default function RegisterVoterProfileScreen() {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.safe}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Text style={styles.title}>Voter Registration</Text>
-        <Text style={styles.subtitle}>
-          Complete the form below to register a new constituent.
-        </Text>
-        <Text style={styles.stepText}>
-          Step {step} of {totalSteps}
-        </Text>
-
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-        <View style={styles.uploadCard}>
-          <TouchableOpacity
-            style={styles.uploadCircle}
-            onPress={() =>
-              Alert.alert("Upload", "Photo upload is a placeholder.")
-            }
+        <Pressable style={styles.safe} onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            <MaterialIcons name="add-a-photo" size={34} color="#757682" />
-            <Text style={styles.uploadText}>Upload Photo</Text>
-          </TouchableOpacity>
-          <Text style={styles.hint}>
-            Passport size photo, max 2MB (JPG/PNG)
-          </Text>
-        </View>
-
-        {step === 1 ? (
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Personal Information</Text>
-            <Field
-              label="Full Name (as per ID)"
-              placeholder="Enter Full Name"
-              value={fullName}
-              onChangeText={setFullName}
-            />
-            <Field
-              label="Father's / Husband's Name"
-              placeholder="Enter Name"
-              value={fatherName}
-              onChangeText={setFatherName}
-            />
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Field
-                  label="DOB / Age"
-                  placeholder="DD/MM/YYYY"
-                  value={dob}
-                  onChangeText={setDob}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field
-                  label="Mobile Number"
-                  placeholder="+91"
-                  value={mobile}
-                  onChangeText={setMobile}
-                />
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {step === 2 ? (
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Election Details</Text>
-            <Field
-              label="Voter ID (EPIC Number)"
-              placeholder="ABC1234567"
-              value={voterId}
-              onChangeText={setVoterId}
-            />
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Field
-                  label="Booth Number"
-                  placeholder="000"
-                  value={boothNumber}
-                  onChangeText={setBoothNumber}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field
-                  label="Occupation"
-                  placeholder="Select..."
-                  value={occupation}
-                  onChangeText={setOccupation}
-                />
-              </View>
-            </View>
-            <Field
-              label="Village / Panchayat / Ward"
-              placeholder="Enter Ward or Village name"
-              value={village}
-              onChangeText={setVillage}
-            />
-            <Field
-              label="Panchayat"
-              placeholder="Enter Panchayat"
-              value={panchayat}
-              onChangeText={setPanchayat}
-            />
-          </View>
-        ) : null}
-
-        {step === 3 ? (
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Milestone Reminders</Text>
-            <View style={styles.reminder}>
-              <MaterialIcons name="cake" size={20} color="#1E3A8A" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.reminderLabel}>Birthday</Text>
-                <TextInput
-                  placeholder="Select date"
-                  placeholderTextColor="#757682"
-                  style={styles.reminderInput}
-                />
-              </View>
-            </View>
-            <View style={styles.reminder}>
-              <MaterialIcons name="favorite" size={20} color="#1E3A8A" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.reminderLabel}>Anniversary</Text>
-                <TextInput
-                  placeholder="Select date"
-                  placeholderTextColor="#757682"
-                  style={styles.reminderInput}
-                />
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        {step === 4 ? (
-          <View style={styles.sectionCard}>
-            <View style={styles.familyHead}>
-              <Text style={styles.sectionTitle}>Family Details</Text>
-              <TouchableOpacity
-                style={styles.addBtn}
-                onPress={() =>
-                  Alert.alert("Family", "Add member is a placeholder.")
-                }
-              >
-                <MaterialIcons name="add" size={14} color="#00236F" />
-                <Text style={styles.addText}>Add Member</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.memberRow}>
-              <View style={styles.memberNo}>
-                <Text style={styles.memberNoText}>1</Text>
-              </View>
-              <View style={styles.memberFields}>
-                <TextInput
-                  placeholder="Name"
-                  placeholderTextColor="#757682"
-                  style={styles.memberInput}
-                />
-                <TextInput
-                  placeholder="Relation"
-                  placeholderTextColor="#757682"
-                  style={styles.memberInput}
-                />
-              </View>
-              <TouchableOpacity
-                onPress={() =>
-                  Alert.alert("Family", "Remove member is a placeholder.")
-                }
-              >
-                <MaterialIcons name="delete" size={20} color="#757682" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.hint}>
-              Enter details of family members residing in the same household.
+            <Text style={styles.title}>Voter Registration</Text>
+            <Text style={styles.subtitle}>
+              Complete the form below to register a new constituent.
             </Text>
-          </View>
-        ) : null}
+            <Text style={styles.stepText}>
+              Step {step} of {totalSteps}
+            </Text>
 
-        <View style={styles.actions}>
-          {step > 1 ? (
-            <TouchableOpacity style={styles.clearBtn} onPress={prevStep}>
-              <Text style={styles.clearText}>Back</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.clearBtn}
-              onPress={() => router.push("/login" as never)}
-            >
-              <Text style={styles.clearText}>Cancel</Text>
-            </TouchableOpacity>
-          )}
-          {step < totalSteps ? (
-            <TouchableOpacity style={styles.saveBtn} onPress={nextStep}>
-              <MaterialIcons name="navigate-next" size={18} color="#FFFFFF" />
-              <Text style={styles.saveText}>Next</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.saveBtn}
-              onPress={handleSubmit}
-              disabled={isLoading}
-            >
-              <MaterialIcons name="save" size={18} color="#FFFFFF" />
-              <Text style={styles.saveText}>
-                {isLoading ? "Saving..." : "Submit"}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <View style={styles.uploadCard}>
+              <TouchableOpacity
+                style={styles.uploadCircle}
+                onPress={() =>
+                  Alert.alert("Upload", "Photo upload is a placeholder.")
+                }
+              >
+                <MaterialIcons name="add-a-photo" size={34} color="#757682" />
+                <Text style={styles.uploadText}>Upload Photo</Text>
+              </TouchableOpacity>
+              <Text style={styles.hint}>
+                Passport size photo, max 2MB (JPG/PNG)
               </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
+            </View>
+
+            {step === 1 ? (
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Personal Information</Text>
+                <Field
+                  label="Full Name (as per ID)"
+                  placeholder="Enter Full Name"
+                  value={fullName}
+                  onChangeText={setFullName}
+                />
+                <Field
+                  label="Father's / Husband's Name"
+                  placeholder="Enter Name"
+                  value={fatherName}
+                  onChangeText={setFatherName}
+                />
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <Field
+                      label="DOB / Age"
+                      placeholder="DD/MM/YYYY"
+                      value={dob}
+                      onChangeText={setDob}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Field
+                      label="Mobile Number"
+                      placeholder="+91"
+                      value={mobile}
+                      onChangeText={setMobile}
+                    />
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            {step === 2 ? (
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Election Details</Text>
+                <Field
+                  label="Voter ID (EPIC Number)"
+                  placeholder="ABC1234567"
+                  value={voterId}
+                  onChangeText={setVoterId}
+                />
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <Field
+                      label="Booth Number"
+                      placeholder="000"
+                      value={boothNumber}
+                      onChangeText={setBoothNumber}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Field
+                      label="Occupation"
+                      placeholder="Select..."
+                      value={occupation}
+                      onChangeText={setOccupation}
+                    />
+                  </View>
+                </View>
+                <Field
+                  label="Village / Panchayat / Ward"
+                  placeholder="Enter Ward or Village name"
+                  value={village}
+                  onChangeText={setVillage}
+                />
+                <Field
+                  label="Panchayat"
+                  placeholder="Enter Panchayat"
+                  value={panchayat}
+                  onChangeText={setPanchayat}
+                />
+              </View>
+            ) : null}
+
+            {step === 3 ? (
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Milestone Reminders</Text>
+                <View style={styles.reminder}>
+                  <MaterialIcons name="cake" size={20} color="#1E3A8A" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.reminderLabel}>Birthday</Text>
+                    <TextInput
+                      placeholder="Select date"
+                      placeholderTextColor="#757682"
+                      style={styles.reminderInput}
+                    />
+                  </View>
+                </View>
+                <View style={styles.reminder}>
+                  <MaterialIcons name="favorite" size={20} color="#1E3A8A" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.reminderLabel}>Anniversary</Text>
+                    <TextInput
+                      placeholder="Select date"
+                      placeholderTextColor="#757682"
+                      style={styles.reminderInput}
+                    />
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            {step === 4 ? (
+              <View style={styles.sectionCard}>
+                <View style={styles.familyHead}>
+                  <Text style={styles.sectionTitle}>Family Details</Text>
+                  <TouchableOpacity
+                    style={styles.addBtn}
+                    onPress={() =>
+                      Alert.alert("Family", "Add member is a placeholder.")
+                    }
+                  >
+                    <MaterialIcons name="add" size={14} color="#00236F" />
+                    <Text style={styles.addText}>Add Member</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.memberRow}>
+                  <View style={styles.memberNo}>
+                    <Text style={styles.memberNoText}>1</Text>
+                  </View>
+                  <View style={styles.memberFields}>
+                    <TextInput
+                      placeholder="Name"
+                      placeholderTextColor="#757682"
+                      style={styles.memberInput}
+                    />
+                    <TextInput
+                      placeholder="Relation"
+                      placeholderTextColor="#757682"
+                      style={styles.memberInput}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    onPress={() =>
+                      Alert.alert("Family", "Remove member is a placeholder.")
+                    }
+                  >
+                    <MaterialIcons name="delete" size={20} color="#757682" />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.hint}>
+                  Enter details of family members residing in the same
+                  household.
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={styles.actions}>
+              {step > 1 ? (
+                <TouchableOpacity style={styles.clearBtn} onPress={prevStep}>
+                  <Text style={styles.clearText}>Back</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.clearBtn}
+                  onPress={() => router.push("/login" as never)}
+                >
+                  <Text style={styles.clearText}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+              {step < totalSteps ? (
+                <TouchableOpacity style={styles.saveBtn} onPress={nextStep}>
+                  <MaterialIcons
+                    name="navigate-next"
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.saveText}>Next</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.saveBtn}
+                  onPress={handleSubmit}
+                  disabled={isLoading}
+                >
+                  <MaterialIcons name="save" size={18} color="#FFFFFF" />
+                  <Text style={styles.saveText}>
+                    {isLoading ? "Saving..." : "Submit"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </ScrollView>
+        </Pressable>
+      </KeyboardAvoidingView>
 
       <View style={styles.bottomNav}>
         <TouchableOpacity

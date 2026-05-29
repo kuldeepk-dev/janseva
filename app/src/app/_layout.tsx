@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "../context/AuthContext";
 import { AppBottomLayout } from "../components/AppBottomLayout";
 import { OperatorBottomLayout } from "../components/OperatorBottomLayout";
 import { OfficerBottomLayout } from "../components/OfficerBottomLayout";
+import { AdminBottomLayout } from "../components/AdminBottomLayout";
 import {
   canAccessRoute,
   isPublicRoute,
@@ -61,6 +62,19 @@ function getOfficerTab(pathname: string) {
   return null;
 }
 
+function getAdminTab(pathname: string) {
+  if (pathname === "/admin/settings") {
+    return "settings";
+  }
+  if (pathname === "/admin/complaint-lifecycle") {
+    return "complaints";
+  }
+  if (pathname === "/admin/whatsapp") {
+    return "whatsapp";
+  }
+  return null;
+}
+
 function RouteGuard() {
   const router = useRouter();
   const pathname = usePathname();
@@ -70,6 +84,7 @@ function RouteGuard() {
     userRole === "operator" ? getOperatorTab(pathname) : null;
   const activeOfficerTab =
     userRole === "officer" ? getOfficerTab(pathname) : null;
+  const activeAdminTab = userRole === "admin" ? getAdminTab(pathname) : null;
   const publicRoute = isPublicRoute(pathname);
   const isAuthorized = isLoggedIn && !!userRole && !isLoggingOut;
 
@@ -79,7 +94,11 @@ function RouteGuard() {
     }
 
     if (publicRoute) {
-      if (isLoggedIn && userRole && (pathname === "/login" || pathname === "/otp")) {
+      if (
+        isLoggedIn &&
+        userRole &&
+        (pathname === "/login" || pathname === "/otp")
+      ) {
         router.replace(ROLE_HOME[userRole] as never);
       }
       return;
@@ -112,14 +131,25 @@ function RouteGuard() {
           activeTab={activeTab as "home" | "grievance" | "feed" | "profile"}
         />
       ) : null}
-      {isHydrated && isLoggedIn && userRole === "operator" && activeOperatorTab ? (
+      {isHydrated &&
+      isLoggedIn &&
+      userRole === "operator" &&
+      activeOperatorTab ? (
         <OperatorBottomLayout
           activeTab={activeOperatorTab as "home" | "assign" | "profile"}
         />
       ) : null}
-      {isHydrated && isLoggedIn && userRole === "officer" && activeOfficerTab ? (
+      {isHydrated &&
+      isLoggedIn &&
+      userRole === "officer" &&
+      activeOfficerTab ? (
         <OfficerBottomLayout
           activeTab={activeOfficerTab as "home" | "queue" | "profile"}
+        />
+      ) : null}
+      {isHydrated && isLoggedIn && userRole === "admin" && activeAdminTab ? (
+        <AdminBottomLayout
+          activeTab={activeAdminTab as "settings" | "complaints" | "whatsapp"}
         />
       ) : null}
     </View>

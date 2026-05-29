@@ -1,6 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { apiConfigError } from "../../lib/api";
+import { getMyComplaints } from "../../services/complaintService";
+import { getMyVoter } from "../../services/voterService";
 import {
   Alert,
   Image,
@@ -16,6 +19,81 @@ import {
 export default function CitizenDashboardScreen() {
   const router = useRouter();
   const [aiOpen, setAiOpen] = useState(false);
+  const [voterName, setVoterName] = useState<string | null>(null);
+  const [hasVoterProfile, setHasVoterProfile] = useState(false);
+  const [stats, setStats] = useState({ open: 0, resolved: 0, pending: 0 });
+
+  useEffect(() => {
+    let isActive = true;
+    const load = async () => {
+      if (apiConfigError) {
+        return;
+      }
+      try {
+        const [voter, complaints] = await Promise.all([
+          getMyVoter(),
+          getMyComplaints(),
+        ]);
+        if (!isActive) {
+          return;
+        }
+
+        const fullName = voter?.full_name?.trim() || null;
+        setVoterName(fullName);
+        setHasVoterProfile(!!voter);
+
+        const pendingStatuses = new Set(["unassigned", "assigned"]);
+        const openStatuses = new Set([
+          "acknowledged",
+          "in_progress",
+          "reopened",
+          "escalated",
+        ]);
+        let pending = 0;
+        let open = 0;
+        let resolved = 0;
+
+        complaints.forEach(item => {
+          const status = item.status;
+          if (!status) {
+            pending += 1;
+            return;
+          }
+          if (status === "resolved" || status === "closed") {
+            resolved += 1;
+          } else if (pendingStatuses.has(status)) {
+            pending += 1;
+          } else if (openStatuses.has(status)) {
+            open += 1;
+          } else {
+            open += 1;
+          }
+        });
+
+        setStats({ open, resolved, pending });
+      } catch {
+        if (!isActive) {
+          return;
+        }
+        setVoterName(null);
+        setHasVoterProfile(false);
+        setStats({ open: 0, resolved: 0, pending: 0 });
+      }
+    };
+
+    void load();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const welcomeText = useMemo(() => {
+    if (!voterName) {
+      return "";
+    }
+    return `Namaste, ${voterName}`;
+  }, [voterName]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -47,7 +125,9 @@ export default function CitizenDashboardScreen() {
       >
         <View style={styles.welcomeSection}>
           <View>
-            <Text style={styles.welcomeText}>Namaste, Sandeep</Text>
+            {welcomeText ? (
+              <Text style={styles.welcomeText}>{welcomeText}</Text>
+            ) : null}
             <Text style={styles.title}>Your Dashboard</Text>
           </View>
           <View style={styles.wardBadge}>
@@ -64,7 +144,9 @@ export default function CitizenDashboardScreen() {
               >
                 <MaterialIcons name="error" size={22} color="#93000A" />
               </View>
-              <Text style={styles.statNumber}>04</Text>
+              <Text style={styles.statNumber}>
+                {String(stats.open).padStart(2, "0")}
+              </Text>
             </View>
             <Text style={styles.statLabel}>Open</Text>
           </View>
@@ -76,7 +158,9 @@ export default function CitizenDashboardScreen() {
               >
                 <MaterialIcons name="check-circle" size={22} color="#00714D" />
               </View>
-              <Text style={styles.statNumber}>12</Text>
+              <Text style={styles.statNumber}>
+                {String(stats.resolved).padStart(2, "0")}
+              </Text>
             </View>
             <Text style={styles.statLabel}>Resolved</Text>
           </View>
@@ -92,30 +176,38 @@ export default function CitizenDashboardScreen() {
                   color="#757682"
                 />
               </View>
-              <Text style={styles.statNumber}>02</Text>
+              <Text style={styles.statNumber}>
+                {String(stats.pending).padStart(2, "0")}
+              </Text>
             </View>
             <Text style={styles.statLabel}>Pending</Text>
           </View>
         </View>
 
-        <View style={styles.primaryHub}>
-          <Text style={styles.primaryHubTitle}>Important for New Citizens</Text>
-          <TouchableOpacity
-            style={styles.registerBtn}
-            onPress={() => router.push("/register" as never)}
-          >
-            <View style={styles.registerLeft}>
-              <MaterialIcons name="how-to-reg" size={28} color="#FFFFFF" />
-              <View>
-                <Text style={styles.registerTitle}>Register Voter Profile</Text>
-                <Text style={styles.registerSubtitle}>
-                  Mandatory for local body elections
-                </Text>
+        {!hasVoterProfile ? (
+          <View style={styles.primaryHub}>
+            <Text style={styles.primaryHubTitle}>
+              Important for New Citizens
+            </Text>
+            <TouchableOpacity
+              style={styles.registerBtn}
+              onPress={() => router.push("/register" as never)}
+            >
+              <View style={styles.registerLeft}>
+                <MaterialIcons name="how-to-reg" size={28} color="#FFFFFF" />
+                <View>
+                  <Text style={styles.registerTitle}>
+                    Register Voter Profile
+                  </Text>
+                  <Text style={styles.registerSubtitle}>
+                    Mandatory for local body elections
+                  </Text>
+                </View>
               </View>
-            </View>
-            <MaterialIcons name="arrow-forward" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+              <MaterialIcons name="arrow-forward" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View style={styles.actionGrid}>
           <TouchableOpacity

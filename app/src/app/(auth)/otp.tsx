@@ -69,8 +69,8 @@ export default function OtpScreen() {
     }
     setIsLoading(true);
     try {
-      await verifyOtp(mobile, token);
-      const profile = await getCurrentProfile();
+      const result = await verifyOtp(mobile, token);
+      const profile = result.profile ?? (await getCurrentProfile());
       const resolvedRole =
         profile?.role ??
         (role as "citizen" | "operator" | "officer" | "leader") ??
@@ -102,109 +102,115 @@ export default function OtpScreen() {
         style={styles.safe}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-      <Pressable style={styles.safe} onPress={Keyboard.dismiss}>
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/login" as never);
-            }
-          }}
-        >
-          <MaterialIcons name="arrow-back" size={28} color="#0A2A82" />
-        </TouchableOpacity>
-        <Text style={styles.brand}>जन सेवा</Text>
-        <View style={styles.langChip}>
-          <MaterialIcons name="language" size={18} color="#0A2A82" />
-          <Text style={styles.langText}>English</Text>
-          <MaterialIcons name="keyboard-arrow-down" size={18} color="#0A2A82" />
-        </View>
-      </View>
-
-      <View style={styles.body}>
-        <View style={styles.lockWrap}>
-          <View style={styles.lockCard}>
-            <Text style={styles.lockEmoji}>🔒</Text>
-          </View>
-          <View style={styles.shieldBadge}>
-            <Text style={styles.shieldText}>🛡</Text>
-          </View>
-        </View>
-
-        <Text style={styles.title}>Verify OTP</Text>
-        <Text style={styles.subtitle}>
-          Enter the 6-digit code sent to{" "}
-          <Text style={styles.bold}>{displayMobile}</Text>
-        </Text>
-        {typeof devOtp === "string" && devOtp.length === 6 ? (
-          <Text style={styles.devHint}>Dev OTP: {devOtp}</Text>
-        ) : null}
-
-        <View style={styles.otpCard}>
-          <View style={styles.otpRow}>
-            {[0, 1, 2, 3, 4, 5].map(i => (
-              <TextInput
-                key={i}
-                ref={ref => {
-                  inputRefs.current[i] = ref;
-                }}
-                style={styles.otpBox}
-                maxLength={1}
-                keyboardType="number-pad"
-                value={otp[i]}
-                onChangeText={value => handleChange(i, value)}
-                onKeyPress={({ nativeEvent }) => {
-                  if (
-                    nativeEvent.key === "Backspace" &&
-                    !otp[i] &&
-                    i > 0
-                  ) {
-                    inputRefs.current[i - 1]?.focus();
+        <Pressable style={styles.safe} onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.header}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace("/login" as never);
                   }
                 }}
-              />
-            ))}
-          </View>
+              >
+                <MaterialIcons name="arrow-back" size={28} color="#0A2A82" />
+              </TouchableOpacity>
+              <Text style={styles.brand}>जन सेवा</Text>
+              <View style={styles.langChip}>
+                <MaterialIcons name="language" size={18} color="#0A2A82" />
+                <Text style={styles.langText}>English</Text>
+                <MaterialIcons
+                  name="keyboard-arrow-down"
+                  size={18}
+                  color="#0A2A82"
+                />
+              </View>
+            </View>
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <View style={styles.body}>
+              <View style={styles.lockWrap}>
+                <View style={styles.lockCard}>
+                  <Text style={styles.lockEmoji}>🔒</Text>
+                </View>
+                <View style={styles.shieldBadge}>
+                  <Text style={styles.shieldText}>🛡</Text>
+                </View>
+              </View>
 
-          <TouchableOpacity style={styles.cta} onPress={handleVerify}>
-            <Text style={styles.ctaText}>
-              {isLoading ? "Verifying..." : "Verify & Proceed →"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <Text style={styles.title}>Verify OTP</Text>
+              <Text style={styles.subtitle}>
+                Enter the 6-digit code sent to{" "}
+                <Text style={styles.bold}>{displayMobile}</Text>
+              </Text>
+              {typeof devOtp === "string" && devOtp.length === 6 ? (
+                <Text style={styles.devHint}>Dev OTP: {devOtp}</Text>
+              ) : null}
 
-        <Text style={styles.timerText}>
-          Didn't receive the code? <Text style={styles.timer}>00:28</Text>
-        </Text>
-        <TouchableOpacity
-          onPress={() => Alert.alert("OTP", "A new OTP will be sent shortly.")}
-        >
-          <Text style={styles.resend}>Resend OTP</Text>
-        </TouchableOpacity>
-      </View>
+              <View style={styles.otpCard}>
+                <View style={styles.otpRow}>
+                  {[0, 1, 2, 3, 4, 5].map(i => (
+                    <TextInput
+                      key={i}
+                      ref={ref => {
+                        inputRefs.current[i] = ref;
+                      }}
+                      style={styles.otpBox}
+                      maxLength={1}
+                      keyboardType="number-pad"
+                      value={otp[i]}
+                      onChangeText={value => handleChange(i, value)}
+                      onKeyPress={({ nativeEvent }) => {
+                        if (
+                          nativeEvent.key === "Backspace" &&
+                          !otp[i] &&
+                          i > 0
+                        ) {
+                          inputRefs.current[i - 1]?.focus();
+                        }
+                      }}
+                    />
+                  ))}
+                </View>
 
-      <View style={styles.footer}>
-        <View style={styles.footerLineWrap}>
-          <MaterialIcons name="security" size={18} color="#777B87" />
-          <Text style={styles.footerLine}>
-            Secured by National Informatics Centre
-          </Text>
-        </View>
-        <Text style={styles.footerSub}>
-          DIGITAL INDIA | GOVERNMENT OF INDIA
-        </Text>
-      </View>
-      </ScrollView>
-      </Pressable>
+                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+                <TouchableOpacity style={styles.cta} onPress={handleVerify}>
+                  <Text style={styles.ctaText}>
+                    {isLoading ? "Verifying..." : "Verify & Proceed →"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.timerText}>
+                Didn't receive the code? <Text style={styles.timer}>00:28</Text>
+              </Text>
+              <TouchableOpacity
+                onPress={() =>
+                  Alert.alert("OTP", "A new OTP will be sent shortly.")
+                }
+              >
+                <Text style={styles.resend}>Resend OTP</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.footer}>
+              <View style={styles.footerLineWrap}>
+                <MaterialIcons name="security" size={18} color="#777B87" />
+                <Text style={styles.footerLine}>
+                  Secured by National Informatics Centre
+                </Text>
+              </View>
+              <Text style={styles.footerSub}>
+                DIGITAL INDIA | GOVERNMENT OF INDIA
+              </Text>
+            </View>
+          </ScrollView>
+        </Pressable>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
