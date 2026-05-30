@@ -62,8 +62,20 @@ function registerAuthRoutes(app, db, { DEV_OTP_ECHO }) {
     const match = await bcrypt.compare(password, staffUser.password_hash);
     if (!match) return res.status(401).send("Invalid credentials");
 
-    const profile = await db.collection("profiles").findOne({ _id: new ObjectId(staffUser.profile_id) });
-    if (!profile) return res.status(401).send("Profile not found");
+    let profile = await db.collection("profiles").findOne({ _id: new ObjectId(staffUser.profile_id) });
+    if (!profile) {
+      const now = new Date().toISOString();
+      const result = await db.collection("profiles").insertOne({
+        role: staffUser.role || "operator",
+        full_name: staffUser.name ?? null,
+        mobile: null,
+        email: staffUser.email,
+        preferred_language: "en",
+        created_at: now,
+        updated_at: now,
+      });
+      profile = await db.collection("profiles").findOne({ _id: result.insertedId });
+    }
 
     const tokenValue = createToken({ id: profile._id.toString(), role: staffUser.role || profile.role });
     return res.json({ token: tokenValue, profile: toPublicDoc(profile) });

@@ -1,10 +1,11 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import {
   assignComplaint,
   getAllComplaints,
+  getComplaintById,
   getDepartments,
 } from "../../services/complaintService";
 import {
@@ -20,6 +21,7 @@ import {
 
 export default function ComplaintAssignmentScreen() {
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const [selected, setSelected] = useState(true);
   const [priority, setPriority] = useState<"Normal" | "Urgent" | "Critical">(
     "Normal",
@@ -30,12 +32,16 @@ export default function ComplaintAssignmentScreen() {
   const [subCategory, setSubCategory] = useState(
     "Pothole Repair & Road Maintenance",
   );
+  const [description, setDescription] = useState("");
+  const [locationText, setLocationText] = useState("");
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const targetDepartment = useMemo(() => {
-    switch (category) {
+  const [isFetching, setIsFetching] = useState(false);
+  const resolveTargetDepartment = (value: string) => {
+    switch (value) {
       case "Education":
         return "Block Education Office";
       case "Law & Order":
@@ -55,6 +61,9 @@ export default function ComplaintAssignmentScreen() {
       default:
         return "Admin Review Queue";
     }
+  };
+  const targetDepartment = useMemo(() => {
+    return resolveTargetDepartment(category);
   }, [category]);
 
   useEffect(() => {
@@ -64,21 +73,32 @@ export default function ComplaintAssignmentScreen() {
         setError(apiConfigError);
         return;
       }
+      setIsFetching(true);
       try {
-        const [complaints, departments] = await Promise.all([
-          getAllComplaints(),
+        const [departments, complaints] = await Promise.all([
           getDepartments(),
+          id ? Promise.resolve([]) : getAllComplaints(),
         ]);
-        const first = complaints.find(item => item.status === "unassigned");
-        if (!isActive || !first) {
+        const selectedComplaint = id
+          ? await getComplaintById(id)
+          : complaints.find(item => item.status === "unassigned");
+        if (!isActive || !selectedComplaint) {
+          setError("No complaint found.");
           return;
         }
-        setComplaintId(first.id);
-        setComplaintNumber(first.complaint_number ?? first.id);
-        setCategory(first.category ?? "General");
-        setSubCategory(first.sub_category ?? "General");
+        setComplaintId(selectedComplaint.id);
+        setComplaintNumber(
+          selectedComplaint.complaint_number ?? selectedComplaint.id,
+        );
+        const complaintCategory = selectedComplaint.category ?? "General";
+        setCategory(complaintCategory);
+        setSubCategory(selectedComplaint.sub_category ?? "General");
+        setDescription(selectedComplaint.description ?? "");
+        setLocationText(selectedComplaint.location_text ?? "Not specified");
+        setAttachmentUrl(selectedComplaint.attachment_url);
         const preferredDepartment = departments.find(
-          department => department.name === targetDepartment,
+          department =>
+            department.name === resolveTargetDepartment(complaintCategory),
         );
         setDepartmentId(preferredDepartment?.id ?? null);
       } catch (err) {
@@ -87,13 +107,17 @@ export default function ComplaintAssignmentScreen() {
         }
         const message = err instanceof Error ? err.message : "Failed to load.";
         setError(message);
+      } finally {
+        if (isActive) {
+          setIsFetching(false);
+        }
       }
     };
     void load();
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [id]);
 
   const handleSubmit = async () => {
     setError(null);
@@ -181,6 +205,9 @@ export default function ComplaintAssignmentScreen() {
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {isFetching && !error ? (
+          <Text style={styles.muted}>Loading complaint...</Text>
+        ) : null}
 
         <TouchableOpacity
           style={[styles.card, selected && styles.cardSelected]}
@@ -206,36 +233,31 @@ export default function ComplaintAssignmentScreen() {
             <View style={styles.iconCircle}>
               <MaterialIcons name="location-on" size={20} color="#00236F" />
             </View>
-            <View>
-              <Text style={styles.labelSm}>Submission Detail</Text>
-              <Text style={styles.valueLg}>Ward 14, West Zone</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.labelSm}>Complaint Location</Text>
+              <Text style={styles.valueLg}>
+                {locationText || "Not specified"}
+              </Text>
             </View>
           </View>
           <View style={styles.inline}>
             <MaterialIcons name="schedule" size={16} color="#757682" />
-            <Text style={styles.muted}>Submitted 14 mins ago</Text>
-          </View>
-          <View style={styles.mapBox}>
-            <TouchableOpacity
-              style={styles.mapBtn}
-              onPress={() => Alert.alert("Map", "Map view is a placeholder.")}
-            >
-              <Text style={styles.mapBtnText}>View Location</Text>
-            </TouchableOpacity>
+            <Text style={styles.muted}>Submitted recently</Text>
           </View>
         </View>
 
         <View style={styles.card}>
           <Text style={styles.labelSm}>Detailed Description</Text>
           <Text style={styles.description}>
-            "Significant waterlogging and deep potholes near the main market
-            entrance. It's causing heavy traffic congestion during peak hours
-            and poses risk to two-wheelers."
+            {description || "No description provided."}
           </Text>
-          <View style={styles.photoRow}>
-            <View style={styles.photo} />
-            <View style={styles.photo} />
-          </View>
+          {attachmentUrl && (
+            <View style={styles.photoRow}>
+              <View style={styles.photo}>
+                <MaterialIcons name="image" size={32} color="#757682" />
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={styles.panel}>
@@ -428,6 +450,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#C5C5D3",
     backgroundColor: "#D9E3F4",
+    alignItems: "center",
+    justifyContent: "center",
   },
   panel: {
     borderWidth: 1,

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import {
   getComplaintById,
+  getComplaintTimeline,
+  closeComplaint,
   reopenComplaint,
 } from "../../services/complaintService";
 import {
@@ -63,17 +65,33 @@ function TimelineStep({
 export default function ComplaintLifecycleScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const [status, setStatus] = useState<"In Progress" | "Resolved" | "Reopened">(
-    "Resolved",
-  );
-  const [complaintNumber, setComplaintNumber] = useState("CMP-2025-00923");
-  const [summary, setSummary] = useState(
-    "Pothole reporting and street lighting maintenance.",
-  );
+  const [status, setStatus] = useState<
+    "In Progress" | "Resolved" | "Reopened" | "Closed"
+  >("Resolved");
+  const [complaintNumber, setComplaintNumber] = useState("");
+  const [category, setCategory] = useState("");
+  const [subCategory, setSubCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [locationText, setLocationText] = useState("");
+  const [citizenName, setCitizenName] = useState("");
+  const [summary, setSummary] = useState("");
+  const [timeline, setTimeline] = useState<
+    Array<{
+      id: string;
+      new_status: string | null;
+      note: string | null;
+      created_at: string;
+    }>
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const statusLabel = useMemo(
-    () => (status === "Reopened" ? "REOPENED" : status.toUpperCase()),
+    () =>
+      status === "Reopened"
+        ? "REOPENED"
+        : status === "Closed"
+          ? "CLOSED"
+          : status.toUpperCase(),
     [status],
   );
 
@@ -93,14 +111,24 @@ export default function ComplaintLifecycleScreen() {
       setIsLoading(true);
       setError(null);
       try {
-        const data = await getComplaintById(id);
+        const [data, events] = await Promise.all([
+          getComplaintById(id),
+          getComplaintTimeline(id),
+        ]);
         if (!isActive || !data) {
           return;
         }
         setComplaintNumber(data.complaint_number ?? id);
+        setCategory(data.category ?? "");
+        setSubCategory(data.sub_category ?? "");
+        setDescription(data.description ?? "");
+        setLocationText(data.location_text ?? "");
         setSummary(data.description ?? "Complaint details");
+        setTimeline(events);
         if (data.status === "resolved") {
           setStatus("Resolved");
+        } else if (data.status === "closed") {
+          setStatus("Closed");
         } else if (data.status === "reopened") {
           setStatus("Reopened");
         } else {
@@ -147,6 +175,32 @@ export default function ComplaintLifecycleScreen() {
     }
   };
 
+  const handleFeedback = async (satisfied: boolean) => {
+    if (!id || apiConfigError) {
+      setStatus(satisfied ? "Closed" : "Reopened");
+      return;
+    }
+    const isUuid = /^[0-9a-f-]{36}$/i.test(id);
+    if (!isUuid) {
+      setStatus(satisfied ? "Closed" : "Reopened");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await closeComplaint(
+        id,
+        satisfied,
+        satisfied ? "Citizen confirmed resolution" : "Citizen requested reopen",
+      );
+      setStatus(satisfied ? "Closed" : "Reopened");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Update failed.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
@@ -179,9 +233,9 @@ export default function ComplaintLifecycleScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.breadcrumb}>Complaints › {complaintNumber}</Text>
+        <Text style={styles.breadcrumb}>Complaints › {complaintNumber || "Loading..."}</Text>
         <Text style={styles.title}>Lifecycle Audit Trail</Text>
-        <Text style={styles.sub}>{summary}</Text>
+        <Text style={styles.sub}>{category} {subCategory ? `- ${subCategory}` : ""}</Text>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -209,6 +263,17 @@ export default function ComplaintLifecycleScreen() {
 
         <View style={styles.actionRowTop}>
           {status === "Resolved" ? (
+            <TouchableOpacity
+              style={styles.reopenBtn}
+              onPress={() => handleFeedback(true)}
+            >
+              <MaterialIcons name="check-circle" size={16} color="#00236F" />
+              <Text style={styles.reopenText}>
+                {isLoading ? "Saving..." : "Satisfied"}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+          {status === "Resolved" ? (
             <TouchableOpacity style={styles.reopenBtn} onPress={handleReopen}>
               <MaterialIcons name="refresh" size={16} color="#00236F" />
               <Text style={styles.reopenText}>
@@ -216,6 +281,17 @@ export default function ComplaintLifecycleScreen() {
               </Text>
             </TouchableOpacity>
           ) : null}
+          {status === "Resolved" ? null : (
+            <TouchableOpacity
+              style={styles.reopenBtn}
+              onPress={() => handleFeedback(false)}
+            >
+              <MaterialIcons name="close" size={16} color="#00236F" />
+              <Text style={styles.reopenText}>
+                {isLoading ? "Saving..." : "Not satisfied"}
+              </Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.shareBtn}
             onPress={() =>
@@ -253,21 +329,18 @@ export default function ComplaintLifecycleScreen() {
         </View>
 
         <View style={styles.citizenCard}>
-          <Text style={styles.citizenLabel}>Citizen Info</Text>
-          <Text style={styles.citizenName}>Rajesh Kumar</Text>
+          <Text style={styles.citizenLabel}>Complaint Details</Text>
+          <Text style={styles.citizenName}>{category || "Complaint"}</Text>
+          {subCategory && (
+            <Text style={styles.citizenLoc}>Sub-category: {subCategory}</Text>
+          )}
           <View style={styles.citizenRow}>
             <MaterialIcons name="location-on" size={16} color="#FFFFFF" />
-            <Text style={styles.citizenLoc}>Sector 12, Urban Estate</Text>
+            <Text style={styles.citizenLoc}>{locationText || "Location not specified"}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.contactBtn}
-            onPress={() =>
-              Alert.alert("Contact", "Call/SMS options coming soon.")
-            }
-          >
-            <MaterialIcons name="contact-phone" size={16} color="#00236F" />
-            <Text style={styles.contactText}>Contact Citizen</Text>
-          </TouchableOpacity>
+          {description && (
+            <Text style={styles.citizenDesc}>{description}</Text>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -311,11 +384,35 @@ export default function ComplaintLifecycleScreen() {
           />
           <TimelineStep
             title="Submission"
-            subtitle="Complaint Received via Web Portal"
-            metaLeft="Citizen: Rajesh Kumar"
-            metaRight="13 Oct 2025, 02:10 PM"
+            subtitle={description || "Complaint Received via Web Portal"}
+            metaLeft="Citizen Submission"
+            metaRight="Recently"
             first
           />
+        </View>
+
+        <View style={styles.infoGridCard}>
+          <Text style={styles.gridTitle}>Complaint Timeline</Text>
+          {timeline.length ? (
+            timeline.map(event => (
+              <View key={event.id} style={styles.timelineRow}>
+                <View style={styles.timelineDot} />
+                <View style={styles.timelineBody}>
+                  <Text style={styles.timelineStatus}>
+                    {event.new_status ?? "updated"}
+                  </Text>
+                  <Text style={styles.timelineNote}>
+                    {event.note ?? "Status changed"}
+                  </Text>
+                  <Text style={styles.timelineMeta}>
+                    {new Date(event.created_at).toLocaleString()}
+                  </Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noteText}>No timeline events yet.</Text>
+          )}
         </View>
 
         <View style={styles.infoGridCard}>
@@ -345,7 +442,6 @@ export default function ComplaintLifecycleScreen() {
           </Text>
         </View>
       </ScrollView>
-
     </SafeAreaView>
   );
 }
@@ -491,6 +587,7 @@ const styles = StyleSheet.create({
   citizenName: { color: "#FFFFFF", fontSize: 24, fontWeight: "700" },
   citizenRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   citizenLoc: { color: "#EAF1FF", fontSize: 13 },
+  citizenDesc: { color: "#FFFFFF", fontSize: 14, marginTop: 4, lineHeight: 20 },
   contactBtn: {
     marginTop: 2,
     backgroundColor: "#FFFFFF",
@@ -610,4 +707,20 @@ const styles = StyleSheet.create({
     borderColor: "#C5C5D3",
     padding: 10,
   },
+  timelineRow: { flexDirection: "row", gap: 10, marginTop: 14 },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#00236F",
+    marginTop: 6,
+  },
+  timelineBody: { flex: 1, gap: 2 },
+  timelineStatus: {
+    color: "#00236F",
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  timelineNote: { color: "#444651" },
+  timelineMeta: { color: "#757682", fontSize: 12 },
 });

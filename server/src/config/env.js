@@ -8,8 +8,11 @@ const DEV_OTP_ECHO = process.env.DEV_OTP_ECHO === "true";
 const ADMIN_SEED_EMAIL = process.env.ADMIN_SEED_EMAIL;
 const ADMIN_SEED_PASSWORD = process.env.ADMIN_SEED_PASSWORD;
 const ADMIN_SEED_NAME = process.env.ADMIN_SEED_NAME || "Admin";
-const DEMO_STAFF_SEED_ENABLED = process.env.DEMO_STAFF_SEED_ENABLED !== "false";
+const SEED_DATA_ENABLED = process.env.SEED_DATA_ENABLED === "false";
+const DEMO_STAFF_SEED_ENABLED = process.env.DEMO_STAFF_SEED_ENABLED === "true";
 const DEMO_STAFF_PASSWORD = process.env.DEMO_STAFF_PASSWORD || "Demo@12345";
+const ENABLE_OTP_FLOW = process.env.ENABLE_OTP_FLOW === "true";
+const ENABLE_WHATSAPP_FLOW = process.env.ENABLE_WHATSAPP_FLOW === "true";
 const UPLOADS_DIR = path.join(__dirname, "..", "..", "uploads");
 
 module.exports = {
@@ -21,7 +24,10 @@ module.exports = {
   ADMIN_SEED_EMAIL,
   ADMIN_SEED_PASSWORD,
   ADMIN_SEED_NAME,
+  SEED_DATA_ENABLED,
   DEMO_STAFF_SEED_ENABLED,
   DEMO_STAFF_PASSWORD,
+  ENABLE_OTP_FLOW,
+  ENABLE_WHATSAPP_FLOW,
   UPLOADS_DIR,
 };

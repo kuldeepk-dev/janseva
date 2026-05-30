@@ -1,1 +1,1 @@
-export { default } from "./complaint-assignment";
+export { default } from "./complaints";

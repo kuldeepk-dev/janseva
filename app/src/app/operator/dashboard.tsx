@@ -3,6 +3,12 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import { logout as logoutApi } from "../../services/authService";
 import {
+  getOperatorStats,
+  getActivityLogs,
+  type OperatorStats,
+  type ActivityLog,
+} from "../../services/operatorService";
+import {
   Alert,
   SafeAreaView,
   ScrollView,
@@ -11,7 +17,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
+import { useEffect, useState } from "react";
 
 function MetricCard({
   title,
@@ -33,17 +41,55 @@ function MetricCard({
   );
 }
 
-function LogItem({
-  title,
-  time,
-  desc,
-  chip,
-}: {
-  title: string;
-  time: string;
-  desc: string;
-  chip: string;
-}) {
+function LogItem({ log }: { log: ActivityLog }) {
+  const getTimeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins} mins ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hours ago`;
+    return `${Math.floor(hours / 24)} days ago`;
+  };
+
+  const getLogDisplay = (log: ActivityLog) => {
+    const meta = log.metadata || {};
+    switch (log.action) {
+      case "register_voter":
+        return {
+          title: `New Voter Registered: ${meta.voter_name || "Unknown"}`,
+          desc: `Form ID #${meta.voter_id || "N/A"} | Processed by ${meta.operator_name || "System"}`,
+          chip: "Success",
+        };
+      case "assign_complaint":
+        return {
+          title: `Complaint Assigned: ${meta.complaint_number || "N/A"}`,
+          desc: `Assigned to ${meta.department_name || "Department"} | Priority: ${meta.priority || "normal"}`,
+          chip: "Assigned",
+        };
+      case "create_complaint":
+        return {
+          title: `Grievance Logged: ${meta.category || "General"}`,
+          desc: `Ticket #${meta.complaint_number || "N/A"} | Complainant: ${meta.citizen_name || "Anonymous"}`,
+          chip: "Pending",
+        };
+      case "duplicate_flag":
+        return {
+          title: `Duplicate Flag: ${meta.voter_name || "Unknown"}`,
+          desc: `System identified matching ${meta.match_type || "data"} in ${meta.location || "system"}.`,
+          chip: "Critical",
+        };
+      default:
+        return {
+          title: log.action.replace(/_/g, " ").toUpperCase(),
+          desc: `Entity: ${log.entity_type || "N/A"} | ID: ${log.entity_id || "N/A"}`,
+          chip: "Info",
+        };
+    }
+  };
+
+  const display = getLogDisplay(log);
+
   return (
     <View style={styles.logItem}>
       <View style={styles.logIcon}>
@@ -51,12 +97,12 @@ function LogItem({
       </View>
       <View style={{ flex: 1 }}>
         <View style={styles.logHead}>
-          <Text style={styles.logTitle}>{title}</Text>
-          <Text style={styles.logTime}>{time}</Text>
+          <Text style={styles.logTitle}>{display.title}</Text>
+          <Text style={styles.logTime}>{getTimeAgo(log.created_at)}</Text>
         </View>
-        <Text style={styles.logDesc}>{desc}</Text>
+        <Text style={styles.logDesc}>{display.desc}</Text>
         <View style={styles.logChip}>
-          <Text style={styles.logChipText}>{chip}</Text>
+          <Text style={styles.logChipText}>{display.chip}</Text>
         </View>
       </View>
     </View>
@@ -66,6 +112,30 @@ function LogItem({
 export default function OperatorDashboardScreen() {
   const router = useRouter();
   const { logout } = useAuth();
+  const [stats, setStats] = useState<OperatorStats | null>(null);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [statsData, logsData] = await Promise.all([
+        getOperatorStats(),
+        getActivityLogs(3),
+      ]);
+      setStats(statsData);
+      setLogs(logsData);
+    } catch (error) {
+      Alert.alert("Error", "Failed to load dashboard data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     await logoutApi();
     await logout();
@@ -207,7 +277,7 @@ export default function OperatorDashboardScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.quickBtn}
-            onPress={() => router.push("/complaints" as never)}
+            onPress={() => router.push("/operator/complaints" as never)}
           >
             <MaterialIcons name="list-alt" size={18} color="#00236F" />
             <Text style={styles.quickText}>View Complaints</Text>
@@ -218,42 +288,53 @@ export default function OperatorDashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.metricsGrid}>
-          <MetricCard title="REGISTERED TODAY" value="24" color="#00236F" />
-          <MetricCard title="COMPLAINTS LOGGED" value="12" color="#006C49" />
-          <MetricCard title="WALK-INS SERVED" value="45" color="#121C28" />
-          <MetricCard title="PENDING TASKS" value="08" color="#BA1A1A" />
-        </View>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#00236F" />
+          </View>
+        ) : (
+          <View style={styles.metricsGrid}>
+            <MetricCard
+              title="REGISTERED TODAY"
+              value={String(stats?.registeredToday || 0)}
+              color="#00236F"
+            />
+            <MetricCard
+              title="COMPLAINTS LOGGED"
+              value={String(stats?.complaintsLogged || 0)}
+              color="#006C49"
+            />
+            <MetricCard
+              title="WALK-INS SERVED"
+              value={String(stats?.walkInsServed || 0)}
+              color="#121C28"
+            />
+            <MetricCard
+              title="PENDING TASKS"
+              value={String(stats?.pendingTasks || 0).padStart(2, "0")}
+              color="#BA1A1A"
+            />
+          </View>
+        )}
 
         <View style={styles.logWrap}>
           <View style={styles.logHeader}>
             <Text style={styles.logHeaderTitle}>Recent Activity Log</Text>
-            <TouchableOpacity
-              onPress={() =>
-                Alert.alert("Activity Log", "Full log view is a placeholder.")
-              }
-            >
-              <Text style={styles.viewAll}>View All</Text>
+            <TouchableOpacity onPress={loadData}>
+              <Text style={styles.viewAll}>Refresh</Text>
             </TouchableOpacity>
           </View>
-          <LogItem
-            title="New Voter Registered: Anita Sharma"
-            time="2 mins ago"
-            desc="Form ID #V-90218 | Processed by Sandeep Patil (SID: 4829)"
-            chip="Success"
-          />
-          <LogItem
-            title="Duplicate Flag: Rahul Mehra"
-            time="15 mins ago"
-            desc="System identified matching mobile number in Ward 04."
-            chip="Critical"
-          />
-          <LogItem
-            title="Grievance Logged: Water Leakage"
-            time="42 mins ago"
-            desc="Ticket #GR-2024-88 | Complainant: Sunil G."
-            chip="Pending"
-          />
+          {loading ? (
+            <View style={styles.logLoading}>
+              <ActivityIndicator size="small" color="#00236F" />
+            </View>
+          ) : logs.length === 0 ? (
+            <View style={styles.logEmpty}>
+              <Text style={styles.logEmptyText}>No recent activity</Text>
+            </View>
+          ) : (
+            logs.map(log => <LogItem key={log.id} log={log} />)
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -458,5 +539,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     textTransform: "uppercase",
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logLoading: {
+    padding: 20,
+    alignItems: "center",
+  },
+  logEmpty: {
+    padding: 20,
+    alignItems: "center",
+  },
+  logEmptyText: {
+    color: "#757682",
+    fontSize: 14,
   },
 });

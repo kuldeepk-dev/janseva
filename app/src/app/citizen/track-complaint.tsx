@@ -103,16 +103,7 @@ export default function TrackComplaintScreen() {
   }, [userRole]);
 
   const fallbackComplaints = useMemo(
-    () => [
-      {
-        id: "JS-24031",
-        complaint_number: "JS-24031",
-        category: "Water Supply Issue",
-        status: "in_progress",
-        created_at: "2026-05-20T09:12:00.000Z",
-        expected_resolution_at: null,
-      },
-    ],
+    () => [],
     [],
   );
 
@@ -163,7 +154,10 @@ export default function TrackComplaintScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>Track Complaint</Text>
         <Text style={styles.subtitle}>
           Search complaint ID and monitor status updates in real time.
@@ -216,14 +210,16 @@ export default function TrackComplaintScreen() {
                 label={
                   item.status === "resolved"
                     ? "Resolved"
-                    : item.status === "in_progress"
-                      ? "In Progress"
-                      : item.status === "assigned"
-                        ? "Assigned"
-                        : "Open"
+                    : item.status === "closed"
+                      ? "Closed"
+                      : item.status === "in_progress"
+                        ? "In Progress"
+                        : item.status === "assigned"
+                          ? "Assigned"
+                          : "Open"
                 }
                 tone={
-                  item.status === "resolved"
+                  item.status === "resolved" || item.status === "closed"
                     ? "resolved"
                     : item.status === "in_progress"
                       ? "progress"
@@ -234,7 +230,7 @@ export default function TrackComplaintScreen() {
 
             <View style={styles.metaRow}>
               <Text style={styles.meta}>
-                Filed: {new Date(item.created_at).toLocaleDateString()}
+                Filed: {new Date(item.created_at).toLocaleDateString("en-GB")}
               </Text>
               <Text style={styles.meta}>
                 SLA: {item.expected_resolution_at ? "Active" : "Pending"}

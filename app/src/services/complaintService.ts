@@ -1,3 +1,22 @@
+// Officer sub-assign: assign to another officer within department
+export async function subAssignComplaint(
+  id: string,
+  officerId: string,
+  note?: string,
+) {
+  return apiFetch<Complaint>(`/complaints/${id}/subassign`, {
+    method: "POST",
+    body: JSON.stringify({ officerId, note }),
+  });
+}
+
+// Officer escalate: escalate to senior/admin
+export async function escalateComplaint(id: string, note?: string) {
+  return apiFetch<Complaint>(`/complaints/${id}/escalate`, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  });
+}
 import { apiFetch } from "../lib/api";
 
 const SLA_HOURS: Record<"normal" | "urgent" | "critical", number> = {
@@ -34,6 +53,7 @@ export type Complaint = {
   expected_resolution_at: string | null;
   resolved_at: string | null;
   reopened_at: string | null;
+  closed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -52,6 +72,17 @@ export type Department = {
   id: string;
   name: string;
   category: string | null;
+  created_at: string;
+};
+
+export type ComplaintTimelineEvent = {
+  id: string;
+  complaint_id: string;
+  actor_profile_id: string | null;
+  old_status: string | null;
+  new_status: string | null;
+  note: string | null;
+  satisfied: boolean | null;
   created_at: string;
 };
 
@@ -109,6 +140,21 @@ export async function reopenComplaint(id: string) {
   return apiFetch<Complaint>(`/complaints/${id}/reopen`, {
     method: "POST",
   });
+}
+
+export async function closeComplaint(
+  id: string,
+  satisfied: boolean,
+  note?: string,
+) {
+  return apiFetch<Complaint>(`/complaints/${id}/feedback`, {
+    method: "POST",
+    body: JSON.stringify({ satisfied, note }),
+  });
+}
+
+export async function getComplaintTimeline(id: string) {
+  return apiFetch<ComplaintTimelineEvent[]>(`/complaints/${id}/timeline`);
 }
 
 export async function getDepartments() {

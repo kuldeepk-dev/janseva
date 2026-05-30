@@ -14,6 +14,7 @@ const { registerDepartmentRoutes } = require("./routes/departments");
 const { registerVoterRoutes } = require("./routes/voters");
 const { registerComplaintRoutes } = require("./routes/complaints");
 const { registerOfficerRoutes } = require("./routes/officer");
+const { registerOperatorRoutes } = require("./routes/operator");
 const { registerSocialPostRoutes } = require("./routes/socialPosts");
 const { registerWhatsappRoutes } = require("./routes/whatsapp");
 const { createUpload, registerUploadRoutes } = require("./routes/uploads");
@@ -31,6 +32,17 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 app.use("/uploads", express.static(env.UPLOADS_DIR));
+
+app.get("/config/citizen-flow", (req, res) => {
+  res.json({
+    otp_enabled: env.ENABLE_OTP_FLOW,
+    whatsapp_enabled: env.ENABLE_WHATSAPP_FLOW,
+    registration_enabled: true,
+    complaints_enabled: true,
+    social_feed_enabled: true,
+    reopen_window_days: 7,
+  });
+});
 
 const storage = {
   _handleFile(req, file, cb) {
@@ -58,6 +70,7 @@ async function start() {
   registerVoterRoutes(app, db);
   registerComplaintRoutes(app, db);
   registerOfficerRoutes(app, db);
+  registerOperatorRoutes(app, db);
   registerSocialPostRoutes(app, db);
   registerWhatsappRoutes(app, db);
   registerUploadRoutes(app, upload, env);
