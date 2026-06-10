@@ -1,10 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import { getCurrentProfile } from "../../services/authService";
 import { apiUploadFile } from "../../lib/api";
 import { FlipType, manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import {
   createVoter,
   getMyVoter,
@@ -14,9 +17,13 @@ import * as ImagePicker from "expo-image-picker";
 import {
   Alert,
   ActionSheetIOS,
+  FlatList,
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -28,30 +35,68 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const formatDate = (date: Date) => {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+const parseDate = (value: string) => {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) {
+    return null;
+  }
+  const [, day, month, year] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 function Field({
   label,
   placeholder,
   value,
   onChangeText,
   editable = true,
+  onPress,
+  onFocus,
+  rightIconName = "calendar-today",
 }: {
   label: string;
   placeholder: string;
   value?: string;
   onChangeText?: (value: string) => void;
   editable?: boolean;
+  onPress?: () => void;
+  onFocus?: () => void;
+  rightIconName?: keyof typeof MaterialIcons.glyphMap;
 }) {
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput
-        placeholder={placeholder}
-        placeholderTextColor="#757682"
-        style={styles.input}
-        value={value}
-        onChangeText={onChangeText}
-        editable={editable}
-      />
+      {onPress ? (
+        <TouchableOpacity style={styles.inputPressable} onPress={onPress}>
+          <Text
+            style={[
+              styles.inputPressableText,
+              !value && styles.inputPressablePlaceholder,
+            ]}
+          >
+            {value || placeholder}
+          </Text>
+          <MaterialIcons name={rightIconName} size={18} color="#757682" />
+        </TouchableOpacity>
+      ) : (
+        <TextInput
+          placeholder={placeholder}
+          placeholderTextColor="#757682"
+          style={styles.input}
+          value={value}
+          onChangeText={onChangeText}
+          editable={editable}
+          onFocus={onFocus}
+        />
+      )}
     </View>
   );
 }
@@ -62,6 +107,22 @@ type FamilyMember = {
   gender: "male" | "female" | "other";
 };
 
+const occupationOptions = [
+  "Student",
+  "Homemaker",
+  "Self-Employed",
+  "Business Owner",
+  "Private Sector Employee",
+  "Government Employee",
+  "Public Sector Employee (PSU)",
+  "Professional (Doctor, CA, Lawyer, Architect, etc.)",
+  "Farmer / Agriculturist",
+  "Labourer / Worker",
+  "Retired",
+  "Unemployed",
+  "Other",
+];
+
 export default function RegisterVoterProfileScreen() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -71,6 +132,8 @@ export default function RegisterVoterProfileScreen() {
   const [fullName, setFullName] = useState("");
   const [fatherName, setFatherName] = useState("");
   const [dob, setDob] = useState("");
+  const [birthdayReminder, setBirthdayReminder] = useState("");
+  const [anniversary, setAnniversary] = useState("");
   const [mobile, setMobile] = useState("");
   const [voterId, setVoterId] = useState("");
   const [boothNumber, setBoothNumber] = useState("");
@@ -86,7 +149,71 @@ export default function RegisterVoterProfileScreen() {
   const [femaleCountInput, setFemaleCountInput] = useState("0");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activePicker, setActivePicker] = useState<
+    "dob" | "anniversary" | null
+  >(null);
+  const [isOccupationModalVisible, setIsOccupationModalVisible] =
+    useState(false);
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const fieldLayouts = useRef<Record<string, number>>({});
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const sanitizeAlpha = (value: string) => value.replace(/[^A-Za-z\s]/g, "");
+
+  const openPicker = (field: "dob" | "anniversary") => {
+    setActivePicker(field);
+  };
+
+  const registerFieldLayout = (field: string, y: number) => {
+    fieldLayouts.current[field] = y;
+  };
+
+  const scrollToField = (field: string) => {
+    const y = fieldLayouts.current[field];
+    if (y === undefined || !scrollViewRef.current) {
+      return;
+    }
+    const targetY = Math.max(y - (keyboardHeight > 0 ? keyboardHeight * 0.3 : 32), 0);
+    scrollViewRef.current.scrollTo({ y: targetY, animated: true });
+  };
+
+  const handleScroll = (_event: NativeSyntheticEvent<NativeScrollEvent>) => {};
+
+  const handleDateChange = (
+    field: "dob" | "anniversary",
+    event: DateTimePickerEvent,
+    selectedDate?: Date,
+  ) => {
+    if (Platform.OS !== "ios") {
+      setActivePicker(null);
+    }
+    if (event.type === "dismissed" || !selectedDate) {
+      return;
+    }
+    const formatted = formatDate(selectedDate);
+    if (field === "dob") {
+      setDob(formatted);
+      setBirthdayReminder(formatted);
+      return;
+    }
+    setAnniversary(formatted);
+  };
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, event => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -107,6 +234,7 @@ export default function RegisterVoterProfileScreen() {
           setFullName(voter.full_name ?? "");
           setFatherName(voter.father_name ?? "");
           setDob(voter.dob ?? "");
+          setBirthdayReminder(voter.dob ?? "");
           setMobile(voter.mobile ?? profile?.mobile ?? "");
           setVoterId(voter.voter_id ?? "");
           setBoothNumber(voter.booth_number ?? "");
@@ -266,6 +394,26 @@ export default function RegisterVoterProfileScreen() {
     ]);
   };
 
+  const openOccupationDropdown = () => {
+    if (Platform.OS === "ios") {
+      const options = ["Cancel", ...occupationOptions];
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+        },
+        buttonIndex => {
+          const selected = options[buttonIndex];
+          if (selected && selected !== "Cancel") {
+            setOccupation(selected);
+          }
+        },
+      );
+      return;
+    }
+    setIsOccupationModalVisible(true);
+  };
+
   const handlePhotoUpload = async () => {
     setError(null);
     if (apiConfigError) {
@@ -359,9 +507,13 @@ export default function RegisterVoterProfileScreen() {
       >
         <Pressable style={styles.safe} onPress={Keyboard.dismiss}>
           <ScrollView
+            ref={scrollViewRef}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
           >
             <Text style={styles.title}>Voter Registration</Text>
             <Text style={styles.subtitle}>
@@ -398,25 +550,42 @@ export default function RegisterVoterProfileScreen() {
             {step === 1 ? (
               <View style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Personal Information</Text>
-                <Field
-                  label="Full Name (as per ID)"
-                  placeholder="Enter Full Name"
-                  value={fullName}
-                  onChangeText={value => setFullName(sanitizeAlpha(value))}
-                />
-                <Field
-                  label="Father's / Husband's Name"
-                  placeholder="Enter Name"
-                  value={fatherName}
-                  onChangeText={value => setFatherName(sanitizeAlpha(value))}
-                />
+                <View
+                  onLayout={event =>
+                    registerFieldLayout("fullName", event.nativeEvent.layout.y)
+                  }
+                >
+                  <Field
+                    label="Full Name (as per ID)"
+                    placeholder="Enter Full Name"
+                    value={fullName}
+                    onChangeText={value => setFullName(sanitizeAlpha(value))}
+                    onFocus={() => scrollToField("fullName")}
+                  />
+                </View>
+                <View
+                  onLayout={event =>
+                    registerFieldLayout(
+                      "fatherName",
+                      event.nativeEvent.layout.y,
+                    )
+                  }
+                >
+                  <Field
+                    label="Father's / Husband's Name"
+                    placeholder="Enter Name"
+                    value={fatherName}
+                    onChangeText={value => setFatherName(sanitizeAlpha(value))}
+                    onFocus={() => scrollToField("fatherName")}
+                  />
+                </View>
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
                     <Field
-                      label="DOB / Age"
-                      placeholder="DD/MM/YYYY"
+                      label="DOB"
+                      placeholder="Select DOB"
                       value={dob}
-                      onChangeText={setDob}
+                      onPress={() => openPicker("dob")}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -435,42 +604,76 @@ export default function RegisterVoterProfileScreen() {
             {step === 2 ? (
               <View style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Election Details</Text>
-                <Field
-                  label="Voter ID (EPIC Number)"
-                  placeholder="ABC1234567"
-                  value={voterId}
-                  onChangeText={setVoterId}
-                />
+                <View
+                  onLayout={event =>
+                    registerFieldLayout("voterId", event.nativeEvent.layout.y)
+                  }
+                >
+                  <Field
+                    label="Voter ID (EPIC Number)"
+                    placeholder="ABC1234567"
+                    value={voterId}
+                    onChangeText={setVoterId}
+                    onFocus={() => scrollToField("voterId")}
+                  />
+                </View>
                 <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
+                  <View
+                    style={{ flex: 1 }}
+                    onLayout={event =>
+                      registerFieldLayout(
+                        "boothNumber",
+                        event.nativeEvent.layout.y,
+                      )
+                    }
+                  >
                     <Field
                       label="Booth Number"
                       placeholder="000"
                       value={boothNumber}
                       onChangeText={setBoothNumber}
+                      onFocus={() => scrollToField("boothNumber")}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Field
                       label="Occupation"
-                      placeholder="Select..."
+                      placeholder="Select occupation"
                       value={occupation}
-                      onChangeText={setOccupation}
+                      onPress={openOccupationDropdown}
+                      rightIconName="keyboard-arrow-down"
                     />
                   </View>
                 </View>
-                <Field
-                  label="Village / Panchayat / Ward"
-                  placeholder="Enter Ward or Village name"
-                  value={village}
-                  onChangeText={setVillage}
-                />
-                <Field
-                  label="Panchayat"
-                  placeholder="Enter Panchayat"
-                  value={panchayat}
-                  onChangeText={setPanchayat}
-                />
+                <View
+                  onLayout={event =>
+                    registerFieldLayout("village", event.nativeEvent.layout.y)
+                  }
+                >
+                  <Field
+                    label="Village / Panchayat / Ward"
+                    placeholder="Enter Ward or Village name"
+                    value={village}
+                    onChangeText={setVillage}
+                    onFocus={() => scrollToField("village")}
+                  />
+                </View>
+                <View
+                  onLayout={event =>
+                    registerFieldLayout(
+                      "panchayat",
+                      event.nativeEvent.layout.y,
+                    )
+                  }
+                >
+                  <Field
+                    label="Panchayat"
+                    placeholder="Enter Panchayat"
+                    value={panchayat}
+                    onChangeText={setPanchayat}
+                    onFocus={() => scrollToField("panchayat")}
+                  />
+                </View>
               </View>
             ) : null}
 
@@ -482,9 +685,11 @@ export default function RegisterVoterProfileScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.reminderLabel}>Birthday</Text>
                     <TextInput
-                      placeholder="Select date"
+                      placeholder="Derived from DOB"
                       placeholderTextColor="#757682"
                       style={styles.reminderInput}
+                      value={birthdayReminder}
+                      editable={false}
                     />
                   </View>
                 </View>
@@ -492,11 +697,24 @@ export default function RegisterVoterProfileScreen() {
                   <MaterialIcons name="favorite" size={20} color="#1E3A8A" />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.reminderLabel}>Anniversary</Text>
-                    <TextInput
-                      placeholder="Select date"
-                      placeholderTextColor="#757682"
-                      style={styles.reminderInput}
-                    />
+                    <TouchableOpacity
+                      style={styles.datePickerButton}
+                      onPress={() => openPicker("anniversary")}
+                    >
+                      <Text
+                        style={[
+                          styles.datePickerText,
+                          !anniversary && styles.datePickerPlaceholder,
+                        ]}
+                      >
+                        {anniversary || "Select date"}
+                      </Text>
+                      <MaterialIcons
+                        name="calendar-today"
+                        size={18}
+                        color="#757682"
+                      />
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -524,20 +742,32 @@ export default function RegisterVoterProfileScreen() {
                 </View>
                 <View style={styles.field}>
                   <Text style={styles.label}>How many members in family?</Text>
-                  <TextInput
-                    placeholder="Enter total family members"
-                    maxLength={50}
-                    placeholderTextColor="#757682"
-                    style={styles.input}
-                    keyboardType="number-pad"
-                    value={familySizeInput}
-                    onChangeText={value =>
-                      setFamilySizeInput(value.replace(/[^0-9]/g, ""))
+                  <View
+                    onLayout={event =>
+                      registerFieldLayout("familySize", event.nativeEvent.layout.y)
                     }
-                  />
+                  >
+                    <TextInput
+                      placeholder="Enter total family members"
+                      maxLength={50}
+                      placeholderTextColor="#757682"
+                      style={styles.input}
+                      keyboardType="number-pad"
+                      value={familySizeInput}
+                      onFocus={() => scrollToField("familySize")}
+                      onChangeText={value =>
+                        setFamilySizeInput(value.replace(/[^0-9]/g, ""))
+                      }
+                    />
+                  </View>
                 </View>
                 <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
+                  <View
+                    style={{ flex: 1 }}
+                    onLayout={event =>
+                      registerFieldLayout("maleCount", event.nativeEvent.layout.y)
+                    }
+                  >
                     <View style={styles.field}>
                       <Text style={styles.label}>How many males?</Text>
                       <TextInput
@@ -546,13 +776,19 @@ export default function RegisterVoterProfileScreen() {
                         style={styles.input}
                         keyboardType="number-pad"
                         value={maleCountInput}
+                        onFocus={() => scrollToField("maleCount")}
                         onChangeText={value =>
                           setMaleCountInput(value.replace(/[^0-9]/g, ""))
                         }
                       />
                     </View>
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View
+                    style={{ flex: 1 }}
+                    onLayout={event =>
+                      registerFieldLayout("femaleCount", event.nativeEvent.layout.y)
+                    }
+                  >
                     <View style={styles.field}>
                       <Text style={styles.label}>How many females?</Text>
                       <TextInput
@@ -561,6 +797,7 @@ export default function RegisterVoterProfileScreen() {
                         style={styles.input}
                         keyboardType="number-pad"
                         value={femaleCountInput}
+                        onFocus={() => scrollToField("femaleCount")}
                         onChangeText={value =>
                           setFemaleCountInput(value.replace(/[^0-9]/g, ""))
                         }
@@ -577,7 +814,16 @@ export default function RegisterVoterProfileScreen() {
                 ) : null}
 
                 {familyMembers.map((member, index) => (
-                  <View key={`member-${index}`} style={styles.memberRow}>
+                  <View
+                    key={`member-${index}`}
+                    style={styles.memberRow}
+                    onLayout={event =>
+                      registerFieldLayout(
+                        `member-${index}`,
+                        event.nativeEvent.layout.y,
+                      )
+                    }
+                  >
                     <View style={styles.memberNo}>
                       <Text style={styles.memberNoText}>{index + 1}</Text>
                     </View>
@@ -587,6 +833,7 @@ export default function RegisterVoterProfileScreen() {
                         placeholderTextColor="#757682"
                         style={styles.memberInput}
                         value={member.name}
+                        onFocus={() => scrollToField(`member-${index}`)}
                         onChangeText={value =>
                           updateFamilyMember(
                             index,
@@ -600,6 +847,7 @@ export default function RegisterVoterProfileScreen() {
                         placeholderTextColor="#757682"
                         style={styles.memberInput}
                         value={member.relation}
+                        onFocus={() => scrollToField(`member-${index}`)}
                         onChangeText={value =>
                           updateFamilyMember(
                             index,
@@ -673,9 +921,80 @@ export default function RegisterVoterProfileScreen() {
                 </TouchableOpacity>
               )}
             </View>
+            {activePicker ? (
+              <DateTimePicker
+                value={parseDate(
+                  activePicker === "dob" ? dob : anniversary,
+                ) ?? new Date()}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                maximumDate={activePicker === "dob" ? new Date() : undefined}
+                onChange={(event, date) => handleDateChange(activePicker, event, date)}
+              />
+            ) : null}
           </ScrollView>
         </Pressable>
       </KeyboardAvoidingView>
+      <Modal
+        visible={isOccupationModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsOccupationModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setIsOccupationModalVisible(false)}
+        >
+          <Pressable style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Occupation</Text>
+              <TouchableOpacity
+                style={styles.modalClose}
+                onPress={() => setIsOccupationModalVisible(false)}
+              >
+                <MaterialIcons name="close" size={20} color="#444651" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={occupationOptions}
+              keyExtractor={item => item}
+              contentContainerStyle={styles.modalList}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const selected = occupation === item;
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.optionRow,
+                      selected && styles.optionRowSelected,
+                    ]}
+                    onPress={() => {
+                      setOccupation(item);
+                      setIsOccupationModalVisible(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        selected && styles.optionTextSelected,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                    {selected ? (
+                      <MaterialIcons
+                        name="check-circle"
+                        size={20}
+                        color="#00236F"
+                      />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -770,6 +1089,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     color: "#121C28",
   },
+  inputPressable: {
+    height: 46,
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 8,
+    backgroundColor: "#F8F9FF",
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  inputPressableText: { color: "#121C28", fontSize: 14, flex: 1 },
+  inputPressablePlaceholder: { color: "#757682" },
   row: { flexDirection: "row", gap: 8 },
   reminder: {
     flexDirection: "row",
@@ -783,6 +1115,19 @@ const styles = StyleSheet.create({
   },
   reminderLabel: { fontSize: 12, color: "#444651" },
   reminderInput: { fontSize: 14, color: "#121C28", paddingTop: 2 },
+  datePickerButton: {
+    height: 38,
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  datePickerText: { color: "#121C28", fontSize: 14, flex: 1 },
+  datePickerPlaceholder: { color: "#757682" },
   familyHead: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -864,4 +1209,54 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   clearText: { color: "#121C28", fontSize: 14, fontWeight: "600" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(18, 28, 40, 0.35)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    maxHeight: "72%",
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E1E4F2",
+  },
+  modalTitle: { color: "#00236F", fontSize: 17, fontWeight: "700" },
+  modalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F4FF",
+  },
+  modalList: { padding: 12, gap: 8 },
+  optionRow: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: "#D9DDEA",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    backgroundColor: "#F8F9FF",
+  },
+  optionRowSelected: {
+    borderColor: "#00236F",
+    backgroundColor: "#EAF0FF",
+  },
+  optionText: { flex: 1, color: "#121C28", fontSize: 14, fontWeight: "500" },
+  optionTextSelected: { color: "#00236F", fontWeight: "700" },
 });
