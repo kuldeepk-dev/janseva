@@ -46,5 +46,4 @@ server/uploads/
 # Expo generated type file (already generated in app)
 app/expo-env.d.ts
 
-
 .npm-cache
