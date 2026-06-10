@@ -382,13 +382,16 @@ export default function RegisterVoterProfileScreen() {
                   <Image
                     source={{ uri: photoUrl }}
                     style={styles.photoPreview}
+                    resizeMode="cover"
                   />
                 ) : (
                   <MaterialIcons name="add-a-photo" size={34} color="#757682" />
                 )}
-                <Text style={styles.uploadText}>
-                  {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
-                </Text>
+                {!photoUrl ? (
+                  <Text style={styles.uploadText}>
+                    {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
+                  </Text>
+                ) : null}
               </TouchableOpacity>
             </View>
 
@@ -732,11 +735,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
+    overflow: "hidden",
   },
   photoPreview: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: "100%",
+    height: "100%",
+    borderRadius: 64,
   },
   uploadText: { fontSize: 12, color: "#757682", fontWeight: "600" },
   hint: { marginTop: 8, fontSize: 12, color: "#444651" },
