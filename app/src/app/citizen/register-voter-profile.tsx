@@ -674,36 +674,6 @@ export default function RegisterVoterProfileScreen() {
         </Pressable>
       </KeyboardAvoidingView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => router.push("/dashboard" as never)}
-        >
-          <MaterialIcons name="dashboard" size={20} color="#444651" />
-          <Text style={styles.tabText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, styles.tabActive]}
-          onPress={() => router.push("/complaints" as never)}
-        >
-          <MaterialIcons name="description" size={20} color="#00714D" />
-          <Text style={styles.tabActiveText}>Grievance</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => router.push("/feed" as never)}
-        >
-          <MaterialIcons name="rss-feed" size={20} color="#444651" />
-          <Text style={styles.tabText}>Feed</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => router.push("/admin/whatsapp" as never)}
-        >
-          <MaterialIcons name="settings" size={20} color="#444651" />
-          <Text style={styles.tabText}>Admin</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -890,27 +860,4 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   clearText: { color: "#121C28", fontSize: 14, fontWeight: "600" },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 66,
-    borderTopWidth: 1,
-    borderTopColor: "#C5C5D3",
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 8,
-  },
-  tab: { alignItems: "center", justifyContent: "center" },
-  tabText: { fontSize: 12, color: "#444651", fontWeight: "500" },
-  tabActive: {
-    backgroundColor: "#6CF8BB",
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-  },
-  tabActiveText: { fontSize: 12, color: "#00714D", fontWeight: "700" },
 });
