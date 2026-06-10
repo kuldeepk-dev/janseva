@@ -15,7 +15,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +22,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type Role = "citizen" | "operator" | "officer" | "leader" | "admin";
 const DEMO_CITIZEN_MOBILE = "9999999999";

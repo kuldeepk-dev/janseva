@@ -5,7 +5,6 @@ import { apiConfigError } from "../../lib/api";
 import { getPublishedPosts } from "../../services/socialPostService";
 import {
   Alert,
-  SafeAreaView,
   ScrollView,
   Share,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function FeedCard({
   title,

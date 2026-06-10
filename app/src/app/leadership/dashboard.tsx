@@ -6,13 +6,13 @@ import { apiConfigError } from "../../lib/api";
 import { getAllComplaints } from "../../services/complaintService";
 import {
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function MetricCard({
   icon,

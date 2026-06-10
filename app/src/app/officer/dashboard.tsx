@@ -3,13 +3,13 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import {
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function StatCard({
   icon,

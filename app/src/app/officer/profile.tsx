@@ -3,12 +3,12 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import { logout as logoutApi } from "../../services/authService";
 import {
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function OfficerProfileScreen() {
   const router = useRouter();

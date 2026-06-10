@@ -8,7 +8,6 @@ import {
 } from "../../services/whatsappTemplateService";
 import {
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -17,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const audience = ["All Voters", "By Ward", "By Booth", "By Interest"];
 

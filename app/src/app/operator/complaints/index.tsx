@@ -5,7 +5,6 @@ import { apiConfigError } from "../../../lib/api";
 import { getAllComplaints } from "../../../services/complaintService";
 import {
   Alert,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type ComplaintItem = {
   id: string;

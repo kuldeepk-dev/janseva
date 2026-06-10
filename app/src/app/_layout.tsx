@@ -11,6 +11,7 @@ import {
   ROLE_HOME,
 } from "../constants/permissions";
 import { View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 function getCitizenTab(pathname: string) {
   if (pathname === "/dashboard") {
@@ -165,8 +166,10 @@ function RouteGuard() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RouteGuard />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <RouteGuard />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
