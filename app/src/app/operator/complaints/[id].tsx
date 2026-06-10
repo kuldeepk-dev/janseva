@@ -1,1 +1,3 @@
-export { default } from "../complaint-assignment";
+import ComplaintAssignmentScreen from "../complaint-assignment";
+
+export default ComplaintAssignmentScreen;

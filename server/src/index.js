@@ -17,6 +17,7 @@ const { registerOfficerRoutes } = require("./routes/officer");
 const { registerOperatorRoutes } = require("./routes/operator");
 const { registerSocialPostRoutes } = require("./routes/socialPosts");
 const { registerWhatsappRoutes } = require("./routes/whatsapp");
+const { registerRoutingRoutes } = require("./routes/routing");
 const { createUpload, registerUploadRoutes } = require("./routes/uploads");
 
 if (!env.MONGODB_URI) {
@@ -73,6 +74,7 @@ async function start() {
   registerOperatorRoutes(app, db);
   registerSocialPostRoutes(app, db);
   registerWhatsappRoutes(app, db);
+  registerRoutingRoutes(app, db);
   registerUploadRoutes(app, upload, env);
 
   app.listen(env.PORT, () => {

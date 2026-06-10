@@ -7,10 +7,24 @@ type OfficerStats = {
   resolvedMonth: number;
 };
 
+export type OfficerDirectoryItem = {
+  id: string;
+  profile_id: string | null;
+  department_id: string | null;
+  full_name: string | null;
+  email: string | null;
+};
+
 export async function getOfficerQueue() {
   return apiFetch<Complaint[]>("/officer/queue");
 }
 
 export async function getOfficerStats(): Promise<OfficerStats> {
   return apiFetch<OfficerStats>("/officer/stats");
+}
+
+export async function getDepartmentOfficers(departmentId: string) {
+  return apiFetch<OfficerDirectoryItem[]>(
+    `/departments/${departmentId}/officers`,
+  );
 }

@@ -72,6 +72,9 @@ export type Department = {
   id: string;
   name: string;
   category: string | null;
+  contact?: string | null;
+  sla_days?: number | null;
+  categories?: string[] | null;
   created_at: string;
 };
 

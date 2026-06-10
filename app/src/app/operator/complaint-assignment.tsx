@@ -4,10 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import {
   assignComplaint,
-  getAllComplaints,
   getComplaintById,
   getDepartments,
+  subAssignComplaint,
 } from "../../services/complaintService";
+import {
+  getDepartmentOfficers,
+  type OfficerDirectoryItem,
+} from "../../services/officerService";
 import {
   Alert,
   SafeAreaView,
@@ -21,7 +25,13 @@ import {
 
 export default function ComplaintAssignmentScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const id =
+    typeof params.id === "string"
+      ? params.id
+      : Array.isArray(params.id)
+        ? params.id[0]
+        : undefined;
   const [selected, setSelected] = useState(true);
   const [priority, setPriority] = useState<"Normal" | "Urgent" | "Critical">(
     "Normal",
@@ -37,6 +47,11 @@ export default function ComplaintAssignmentScreen() {
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [officers, setOfficers] = useState<OfficerDirectoryItem[]>([]);
+  const [selectedOfficerId, setSelectedOfficerId] = useState<string | null>(
+    null,
+  );
+  const [isLoadingOfficers, setIsLoadingOfficers] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
@@ -73,15 +88,16 @@ export default function ComplaintAssignmentScreen() {
         setError(apiConfigError);
         return;
       }
+      if (!id) {
+        setError("No complaint ID provided.");
+        return;
+      }
       setIsFetching(true);
       try {
-        const [departments, complaints] = await Promise.all([
+        const [departments, selectedComplaint] = await Promise.all([
           getDepartments(),
-          id ? Promise.resolve([]) : getAllComplaints(),
+          getComplaintById(id),
         ]);
-        const selectedComplaint = id
-          ? await getComplaintById(id)
-          : complaints.find(item => item.status === "unassigned");
         if (!isActive || !selectedComplaint) {
           setError("No complaint found.");
           return;
@@ -119,6 +135,45 @@ export default function ComplaintAssignmentScreen() {
     };
   }, [id]);
 
+  useEffect(() => {
+    let isActive = true;
+
+    const loadOfficers = async () => {
+      if (!departmentId) {
+        setOfficers([]);
+        setSelectedOfficerId(null);
+        return;
+      }
+      setIsLoadingOfficers(true);
+      try {
+        const data = await getDepartmentOfficers(departmentId);
+        if (!isActive) {
+          return;
+        }
+        setOfficers(data);
+        if (!data.some(officer => officer.profile_id === selectedOfficerId)) {
+          setSelectedOfficerId(data[0]?.profile_id ?? null);
+        }
+      } catch (err) {
+        if (!isActive) {
+          return;
+        }
+        const message =
+          err instanceof Error ? err.message : "Failed to load officers.";
+        setError(message);
+      } finally {
+        if (isActive) {
+          setIsLoadingOfficers(false);
+        }
+      }
+    };
+
+    void loadOfficers();
+    return () => {
+      isActive = false;
+    };
+  }, [departmentId]);
+
   const handleSubmit = async () => {
     setError(null);
     if (apiConfigError || !complaintId) {
@@ -144,6 +199,13 @@ export default function ComplaintAssignmentScreen() {
         priority: priorityValue,
         note: note.trim() || undefined,
       });
+      if (selectedOfficerId) {
+        await subAssignComplaint(
+          complaintId,
+          selectedOfficerId,
+          note.trim() || undefined,
+        );
+      }
       Alert.alert("Assignment", "Complaint marked Assigned successfully.");
       router.push("/operator" as never);
     } catch (err) {
@@ -285,6 +347,43 @@ export default function ComplaintAssignmentScreen() {
             <Text style={styles.selectText}>{targetDepartment}</Text>
             <MaterialIcons name="expand-more" size={20} color="#757682" />
           </TouchableOpacity>
+
+          <Text style={styles.inputLabel}>Available Officers</Text>
+          {isLoadingOfficers ? (
+            <Text style={styles.muted}>Loading officers...</Text>
+          ) : officers.length ? (
+            <View style={styles.officerRow}>
+              {officers.map(officer => {
+                const isActive = officer.profile_id === selectedOfficerId;
+                return (
+                  <TouchableOpacity
+                    key={officer.id}
+                    
+                    style={[
+                      styles.officerChip,
+                      isActive && styles.officerChipActive,
+                    ]}
+                    onPress={() =>
+                      setSelectedOfficerId(officer.profile_id ?? null)
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.officerChipText,
+                        isActive && styles.officerChipTextActive,
+                      ]}
+                    >
+                      {officer.full_name ?? officer.email ?? "Officer"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.muted}>
+              No officers found for this department.
+            </Text>
+          )}
 
           <Text style={styles.inputLabel}>Priority Level</Text>
           <View style={styles.priorityRow}>
@@ -542,4 +641,22 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   submitText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  officerRow: {
+    marginHorizontal: 14,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 2,
+  },
+  officerChip: {
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#FFFFFF",
+  },
+  officerChipActive: { borderColor: "#00236F", backgroundColor: "#E5EEFF" },
+  officerChipText: { color: "#444651", fontSize: 12, fontWeight: "600" },
+  officerChipTextActive: { color: "#00236F" },
 });

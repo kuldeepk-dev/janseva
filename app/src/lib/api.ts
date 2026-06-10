@@ -39,6 +39,47 @@ export async function apiFetch<T>(
   return response.json() as Promise<T>;
 }
 
+type UploadFile = {
+  uri: string;
+  name?: string | null;
+  type?: string | null;
+};
+
+export async function apiUploadFile<T>(path: string, file: UploadFile) {
+  if (!apiBaseUrl) {
+    throw new Error(apiConfigError ?? "API is not configured.");
+  }
+
+  const token = await getToken(TOKEN_KEY);
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const form = new FormData();
+  const name = file.name || `upload-${Date.now()}.jpg`;
+  const type = file.type || "image/jpeg";
+
+  form.append("file", {
+    uri: file.uri,
+    name,
+    type,
+  } as any);
+
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Upload failed (${response.status}).`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 export async function setAuthToken(token: string) {
   await setToken(TOKEN_KEY, token);
 }

@@ -3,9 +3,18 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import { getCurrentProfile } from "../../services/authService";
-import { createVoter, getMyVoter } from "../../services/voterService";
+import { apiUploadFile } from "../../lib/api";
+import { FlipType, manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import {
+  createVoter,
+  getMyVoter,
+  updateVoter,
+} from "../../services/voterService";
+import * as ImagePicker from "expo-image-picker";
 import {
   Alert,
+  ActionSheetIOS,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -24,11 +33,13 @@ function Field({
   placeholder,
   value,
   onChangeText,
+  editable = true,
 }: {
   label: string;
   placeholder: string;
   value?: string;
   onChangeText?: (value: string) => void;
+  editable?: boolean;
 }) {
   return (
     <View style={styles.field}>
@@ -39,10 +50,17 @@ function Field({
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
+        editable={editable}
       />
     </View>
   );
 }
+
+type FamilyMember = {
+  name: string;
+  relation: string;
+  gender: "male" | "female" | "other";
+};
 
 export default function RegisterVoterProfileScreen() {
   const router = useRouter();
@@ -59,8 +77,16 @@ export default function RegisterVoterProfileScreen() {
   const [occupation, setOccupation] = useState("");
   const [village, setVillage] = useState("");
   const [panchayat, setPanchayat] = useState("");
+  const [voterRecordId, setVoterRecordId] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [familySizeInput, setFamilySizeInput] = useState("0");
+  const [maleCountInput, setMaleCountInput] = useState("0");
+  const [femaleCountInput, setFemaleCountInput] = useState("0");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sanitizeAlpha = (value: string) => value.replace(/[^A-Za-z\s]/g, "");
 
   useEffect(() => {
     let isActive = true;
@@ -77,6 +103,7 @@ export default function RegisterVoterProfileScreen() {
           return;
         }
         if (voter) {
+          setVoterRecordId(voter.id ?? null);
           setFullName(voter.full_name ?? "");
           setFatherName(voter.father_name ?? "");
           setDob(voter.dob ?? "");
@@ -86,6 +113,7 @@ export default function RegisterVoterProfileScreen() {
           setOccupation(voter.occupation ?? "");
           setVillage(voter.village ?? "");
           setPanchayat(voter.panchayat ?? "");
+          setPhotoUrl(voter.photo_url ?? null);
         } else if (profile?.mobile) {
           setMobile(profile.mobile);
         }
@@ -110,8 +138,47 @@ export default function RegisterVoterProfileScreen() {
       router.push("/dashboard" as never);
       return;
     }
+    const nameRegex = /^[A-Za-z\s]+$/;
     if (!fullName.trim()) {
       setError("Full name is required.");
+      return;
+    }
+    if (!nameRegex.test(fullName.trim())) {
+      setError("Full name must contain only alphabets.");
+      return;
+    }
+    if (fatherName.trim() && !nameRegex.test(fatherName.trim())) {
+      setError("Father's / Husband's name must contain only alphabets.");
+      return;
+    }
+    if (!dob.trim()) {
+      setError("DOB is required.");
+      return;
+    }
+    if (!voterId.trim()) {
+      setError("Voter ID is required.");
+      return;
+    }
+    if (!village.trim()) {
+      setError("Village is required.");
+      return;
+    }
+    if (!panchayat.trim()) {
+      setError("Panchayat is required.");
+      return;
+    }
+    const hasInvalidMember = familyMembers.some(
+      member => !member.name.trim() || !member.relation.trim(),
+    );
+    if (hasInvalidMember) {
+      setError("Family member Name and Relation are required.");
+      return;
+    }
+    const totalCount = Number.parseInt(familySizeInput || "0", 10) || 0;
+    const maleCount = Number.parseInt(maleCountInput || "0", 10) || 0;
+    const femaleCount = Number.parseInt(femaleCountInput || "0", 10) || 0;
+    if (totalCount > 0 && maleCount + femaleCount !== totalCount) {
+      setError("Male + Female must equal Total Members.");
       return;
     }
     setIsLoading(true);
@@ -126,6 +193,7 @@ export default function RegisterVoterProfileScreen() {
         occupation: occupation.trim() || null,
         village: village.trim() || null,
         panchayat: panchayat.trim() || null,
+        photo_url: photoUrl,
       });
       Alert.alert("Registration", "Profile saved successfully.");
       router.push("/dashboard" as never);
@@ -135,6 +203,122 @@ export default function RegisterVoterProfileScreen() {
       setError(message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const addFamilyMember = () => {
+    setFamilyMembers(prev => [
+      ...prev,
+      { name: "", relation: "", gender: "male" },
+    ]);
+  };
+
+  const removeFamilyMember = (index: number) => {
+    setFamilyMembers(prev => {
+      return prev.filter((_, idx) => idx !== index);
+    });
+  };
+
+  const updateFamilyMember = (
+    index: number,
+    key: keyof FamilyMember,
+    value: string,
+  ) => {
+    setFamilyMembers(prev =>
+      prev.map((member, idx) =>
+        idx === index ? { ...member, [key]: value } : member,
+      ),
+    );
+  };
+
+  const totalMembers = familyMembers.length;
+  const maleMembers = familyMembers.filter(m => m.gender === "male").length;
+  const femaleMembers = familyMembers.filter(m => m.gender === "female").length;
+
+  const openGenderDropdown = (index: number) => {
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ["Cancel", "Male", "Female"],
+          cancelButtonIndex: 0,
+        },
+        buttonIndex => {
+          if (buttonIndex === 1) {
+            updateFamilyMember(index, "gender", "male");
+          } else if (buttonIndex === 2) {
+            updateFamilyMember(index, "gender", "female");
+          }
+        },
+      );
+      return;
+    }
+
+    Alert.alert("Select Gender", "", [
+      {
+        text: "Male",
+        onPress: () => updateFamilyMember(index, "gender", "male"),
+      },
+      {
+        text: "Female",
+        onPress: () => updateFamilyMember(index, "gender", "female"),
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const handlePhotoUpload = async () => {
+    setError(null);
+    if (apiConfigError) {
+      setError(apiConfigError);
+      return;
+    }
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Camera", "Camera permission is required.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      cameraType: ImagePicker.CameraType.front,
+      quality: 0.7,
+    });
+
+    if (result.canceled || !result.assets?.[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    setIsUploadingPhoto(true);
+    try {
+      let uploadUri = asset.uri;
+      if (Platform.OS === "ios") {
+        // iOS front camera selfies can be mirrored; flip once to normalize.
+        const normalized = await manipulateAsync(
+          asset.uri,
+          [{ flip: FlipType.Horizontal }],
+          { compress: 0.85, format: SaveFormat.JPEG },
+        );
+        uploadUri = normalized.uri;
+      }
+
+      const upload = await apiUploadFile<{ url: string }>(
+        "/uploads/voter-photo",
+        {
+          uri: uploadUri,
+          name: asset.fileName ?? `voter-photo-${Date.now()}.jpg`,
+          type: asset.mimeType ?? "image/jpeg",
+        },
+      );
+      setPhotoUrl(upload.url);
+      if (voterRecordId) {
+        await updateVoter(voterRecordId, { photo_url: upload.url });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed.";
+      setError(message);
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -192,16 +376,20 @@ export default function RegisterVoterProfileScreen() {
             <View style={styles.uploadCard}>
               <TouchableOpacity
                 style={styles.uploadCircle}
-                onPress={() =>
-                  Alert.alert("Upload", "Photo upload is a placeholder.")
-                }
+                onPress={handlePhotoUpload}
               >
-                <MaterialIcons name="add-a-photo" size={34} color="#757682" />
-                <Text style={styles.uploadText}>Upload Photo</Text>
+                {photoUrl ? (
+                  <Image
+                    source={{ uri: photoUrl }}
+                    style={styles.photoPreview}
+                  />
+                ) : (
+                  <MaterialIcons name="add-a-photo" size={34} color="#757682" />
+                )}
+                <Text style={styles.uploadText}>
+                  {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
+                </Text>
               </TouchableOpacity>
-              <Text style={styles.hint}>
-                Passport size photo, max 2MB (JPG/PNG)
-              </Text>
             </View>
 
             {step === 1 ? (
@@ -211,13 +399,13 @@ export default function RegisterVoterProfileScreen() {
                   label="Full Name (as per ID)"
                   placeholder="Enter Full Name"
                   value={fullName}
-                  onChangeText={setFullName}
+                  onChangeText={value => setFullName(sanitizeAlpha(value))}
                 />
                 <Field
                   label="Father's / Husband's Name"
                   placeholder="Enter Name"
                   value={fatherName}
-                  onChangeText={setFatherName}
+                  onChangeText={value => setFatherName(sanitizeAlpha(value))}
                 />
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
@@ -234,6 +422,7 @@ export default function RegisterVoterProfileScreen() {
                       placeholder="+91"
                       value={mobile}
                       onChangeText={setMobile}
+                      editable={false}
                     />
                   </View>
                 </View>
@@ -316,39 +505,128 @@ export default function RegisterVoterProfileScreen() {
                   <Text style={styles.sectionTitle}>Family Details</Text>
                   <TouchableOpacity
                     style={styles.addBtn}
-                    onPress={() =>
-                      Alert.alert("Family", "Add member is a placeholder.")
-                    }
+                    onPress={addFamilyMember}
                   >
                     <MaterialIcons name="add" size={14} color="#00236F" />
                     <Text style={styles.addText}>Add Member</Text>
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.memberRow}>
-                  <View style={styles.memberNo}>
-                    <Text style={styles.memberNoText}>1</Text>
-                  </View>
-                  <View style={styles.memberFields}>
-                    <TextInput
-                      placeholder="Name"
-                      placeholderTextColor="#757682"
-                      style={styles.memberInput}
-                    />
-                    <TextInput
-                      placeholder="Relation"
-                      placeholderTextColor="#757682"
-                      style={styles.memberInput}
-                    />
-                  </View>
-                  <TouchableOpacity
-                    onPress={() =>
-                      Alert.alert("Family", "Remove member is a placeholder.")
-                    }
-                  >
-                    <MaterialIcons name="delete" size={20} color="#757682" />
-                  </TouchableOpacity>
+                <View style={styles.countRow}>
+                  <Text style={styles.countText}>
+                    Total Members: {totalMembers}
+                  </Text>
+                  <Text style={styles.countText}>Male: {maleMembers}</Text>
+                  <Text style={styles.countText}>Female: {femaleMembers}</Text>
                 </View>
+                <View style={styles.field}>
+                  <Text style={styles.label}>How many members in family?</Text>
+                  <TextInput
+                    placeholder="Enter total family members"
+                    maxLength={50}
+                    placeholderTextColor="#757682"
+                    style={styles.input}
+                    keyboardType="number-pad"
+                    value={familySizeInput}
+                    onChangeText={value =>
+                      setFamilySizeInput(value.replace(/[^0-9]/g, ""))
+                    }
+                  />
+                </View>
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.field}>
+                      <Text style={styles.label}>How many males?</Text>
+                      <TextInput
+                        placeholder="Enter male members"
+                        placeholderTextColor="#757682"
+                        style={styles.input}
+                        keyboardType="number-pad"
+                        value={maleCountInput}
+                        onChangeText={value =>
+                          setMaleCountInput(value.replace(/[^0-9]/g, ""))
+                        }
+                      />
+                    </View>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.field}>
+                      <Text style={styles.label}>How many females?</Text>
+                      <TextInput
+                        placeholder="Enter female members"
+                        placeholderTextColor="#757682"
+                        style={styles.input}
+                        keyboardType="number-pad"
+                        value={femaleCountInput}
+                        onChangeText={value =>
+                          setFemaleCountInput(value.replace(/[^0-9]/g, ""))
+                        }
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                {familyMembers.length === 0 ? (
+                  <Text style={styles.hint}>
+                    No members added yet. Tap Add Member to add name and
+                    relation.
+                  </Text>
+                ) : null}
+
+                {familyMembers.map((member, index) => (
+                  <View key={`member-${index}`} style={styles.memberRow}>
+                    <View style={styles.memberNo}>
+                      <Text style={styles.memberNoText}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.memberFields}>
+                      <TextInput
+                        placeholder="Name"
+                        placeholderTextColor="#757682"
+                        style={styles.memberInput}
+                        value={member.name}
+                        onChangeText={value =>
+                          updateFamilyMember(
+                            index,
+                            "name",
+                            sanitizeAlpha(value),
+                          )
+                        }
+                      />
+                      <TextInput
+                        placeholder="Relation"
+                        placeholderTextColor="#757682"
+                        style={styles.memberInput}
+                        value={member.relation}
+                        onChangeText={value =>
+                          updateFamilyMember(
+                            index,
+                            "relation",
+                            sanitizeAlpha(value),
+                          )
+                        }
+                      />
+                      <View style={styles.genderDropdownWrap}>
+                        {/* <Text style={styles.genderLabel}>Gender</Text> */}
+                        <TouchableOpacity
+                          style={styles.genderDropdownField}
+                          onPress={() => openGenderDropdown(index)}
+                        >
+                          <Text style={styles.genderDropdownValue}>
+                            {member.gender === "male" ? "Male" : "Female"}
+                          </Text>
+                          <MaterialIcons
+                            name="keyboard-arrow-down"
+                            size={18}
+                            color="#444651"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    <TouchableOpacity onPress={() => removeFamilyMember(index)}>
+                      <MaterialIcons name="delete" size={20} color="#757682" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
 
                 <Text style={styles.hint}>
                   Enter details of family members residing in the same
@@ -485,6 +763,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
   },
+  photoPreview: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
   uploadText: { fontSize: 12, color: "#757682", fontWeight: "600" },
   hint: { marginTop: 8, fontSize: 12, color: "#444651" },
   sectionCard: {
@@ -563,6 +846,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     color: "#121C28",
     fontSize: 13,
+  },
+  countRow: { flexDirection: "row", justifyContent: "space-between" },
+  countText: { color: "#121C28", fontSize: 12, fontWeight: "600" },
+  genderDropdownWrap: { gap: 4 },
+  genderLabel: { color: "#444651", fontSize: 11, fontWeight: "600" },
+  genderDropdownField: {
+    height: 38,
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  genderDropdownValue: {
+    color: "#121C28",
+    fontSize: 12,
+    fontWeight: "600",
   },
   actions: { flexDirection: "row", gap: 10, marginTop: 4 },
   saveBtn: {

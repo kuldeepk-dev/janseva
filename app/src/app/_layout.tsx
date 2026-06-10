@@ -36,7 +36,11 @@ function getOperatorTab(pathname: string) {
   if (pathname === "/operator" || pathname === "/operator/dashboard") {
     return "home";
   }
-  if (pathname === "/operator/assign") {
+  if (
+    pathname === "/operator/assign" ||
+    pathname === "/operator/complaints" ||
+    /^\/operator\/complaints\/[^/]+$/.test(pathname)
+  ) {
     return "assign";
   }
   if (pathname === "/operator/profile") {
@@ -64,6 +68,9 @@ function getOfficerTab(pathname: string) {
 
 function getAdminTab(pathname: string) {
   if (pathname === "/admin/settings") {
+    return "settings";
+  }
+  if (pathname === "/admin/routing") {
     return "settings";
   }
   if (pathname === "/admin/complaint-lifecycle") {

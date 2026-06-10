@@ -118,7 +118,7 @@ export default function AdminSettingsScreen() {
             title="Complaint Routing Matrix"
             desc="Set automated logic for grievance escalation based on department, urgency, and geography."
             action="Define Workflows"
-            onPress={() => router.push("/admin/complaint-lifecycle" as never)}
+            onPress={() => router.push("/admin/routing" as never)}
           />
           <ConfigCard
             icon="translate"

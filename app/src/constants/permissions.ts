@@ -23,6 +23,8 @@ export const ROLE_ROUTES: Record<Role, RouteRule[]> = {
     /^\/complaints\/new$/,
     /^\/complaints\/[^/]+$/,
     /^\/operator\/assign$/,
+    /^\/operator\/complaints$/,
+    /^\/operator\/complaints\/[^/]+$/,
     /^\/leader\/post\/new$/,
   ],
   officer: [
@@ -38,6 +40,7 @@ export const ROLE_ROUTES: Record<Role, RouteRule[]> = {
     /^\/leadership\/settings$/,
     /^\/admin$/,
     /^\/admin\/settings$/,
+    /^\/admin\/routing$/,
     /^\/admin\/complaint-lifecycle$/,
     /^\/leader\/post\/new$/,
     /^\/admin\/whatsapp$/,
@@ -48,6 +51,7 @@ export const ROLE_ROUTES: Record<Role, RouteRule[]> = {
   admin: [
     /^\/admin$/,
     /^\/admin\/settings$/,
+    /^\/admin\/routing$/,
     /^\/admin\/complaint-lifecycle$/,
     /^\/admin\/whatsapp$/,
   ],
