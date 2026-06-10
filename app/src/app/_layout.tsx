@@ -1,7 +1,7 @@
 import { Stack, usePathname, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { AuthProvider, useAuth } from "../context/AuthContext";
-import { AppBottomLayout } from "../components/AppBottomLayout";
+import { CitizenBottomLayout } from "../components/CitizenBottomLayout";
 import { OperatorBottomLayout } from "../components/OperatorBottomLayout";
 import { OfficerBottomLayout } from "../components/OfficerBottomLayout";
 import { AdminBottomLayout } from "../components/AdminBottomLayout";
@@ -13,17 +13,21 @@ import {
 import { View } from "react-native";
 
 function getCitizenTab(pathname: string) {
-  if (pathname === "/dashboard") {
+  if (pathname === "/dashboard" || pathname === "/citizen/dashboard") {
     return "home";
   }
   if (
     pathname === "/complaints" ||
     pathname === "/complaints/new" ||
+    pathname === "/citizen/new-complaint" ||
+    pathname === "/citizen/track-complaint" ||
+    pathname === "/citizen/register-voter-profile" ||
+    pathname === "/register" ||
     /^\/complaints\/[^/]+$/.test(pathname)
   ) {
     return "grievance";
   }
-  if (pathname === "/feed") {
+  if (pathname === "/feed" || pathname === "/citizen/social-feed") {
     return "feed";
   }
   if (pathname === "/citizen/profile") {
@@ -134,7 +138,7 @@ function RouteGuard() {
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }} />
       {isHydrated && isLoggedIn && userRole === "citizen" && activeTab ? (
-        <AppBottomLayout
+        <CitizenBottomLayout
           activeTab={activeTab as "home" | "grievance" | "feed" | "profile"}
         />
       ) : null}
