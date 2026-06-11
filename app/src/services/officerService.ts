@@ -13,6 +13,8 @@ export type OfficerDirectoryItem = {
   department_id: string | null;
   full_name: string | null;
   email: string | null;
+  total_complaints_assigned?: number | null;
+  pending_complaints?: number | null;
 };
 
 export async function getOfficerQueue() {

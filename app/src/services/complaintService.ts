@@ -19,12 +19,6 @@ export async function escalateComplaint(id: string, note?: string) {
 }
 import { apiFetch } from "../lib/api";
 
-const SLA_HOURS: Record<"normal" | "urgent" | "critical", number> = {
-  normal: 24 * 7,
-  urgent: 24 * 3,
-  critical: 24,
-};
-
 export type Complaint = {
   id: string;
   complaint_number: string | null;
@@ -66,6 +60,7 @@ type AssignmentData = {
   assignedDepartmentId: string;
   priority: "normal" | "urgent" | "critical";
   note?: string;
+  expectedResolutionAt?: string;
 };
 
 export type Department = {
@@ -95,6 +90,12 @@ function addHours(date: Date, hours: number) {
   return result.toISOString();
 }
 
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result.toISOString();
+}
+
 export async function createComplaint(data: ComplaintInsert) {
   return apiFetch<Complaint>("/complaints", {
     method: "POST",
@@ -115,17 +116,14 @@ export async function getAllComplaints() {
 }
 
 export async function assignComplaint(id: string, assignment: AssignmentData) {
-  const expectedResolution = addHours(
-    new Date(),
-    SLA_HOURS[assignment.priority],
-  );
   return apiFetch<Complaint>(`/complaints/${id}/assign`, {
     method: "POST",
-    body: JSON.stringify({
-      ...assignment,
-      expected_resolution_at: expectedResolution,
-    }),
-  });
+      body: JSON.stringify({
+        ...assignment,
+        expected_resolution_at:
+          assignment.expectedResolutionAt ?? addDays(new Date(), 7),
+      }),
+    });
 }
 
 export async function updateComplaintStatus(

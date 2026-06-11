@@ -2,6 +2,7 @@ const { ObjectId } = require("mongodb");
 const { requireAuth } = require("../middleware/auth");
 const { toPublicDoc, toPublicDocs } = require("../utils/serializers");
 const { nextComplaintNumber } = require("../utils/complaints");
+const { refreshOfficerCountsForComplaint } = require("./officer");
 
 function registerComplaintRoutes(app, db) {
     function buildComplaintUpdate(status, note) {
@@ -44,6 +45,7 @@ function registerComplaintRoutes(app, db) {
             created_at: new Date().toISOString(),
         });
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
+        await refreshOfficerCountsForComplaint(db, updated);
         return res.json(toPublicDoc(updated));
     });
 
@@ -67,6 +69,7 @@ function registerComplaintRoutes(app, db) {
         });
         // TODO: notify admin/leader
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
+        await refreshOfficerCountsForComplaint(db, updated);
         return res.json(toPublicDoc(updated));
     });
 
@@ -162,6 +165,7 @@ function registerComplaintRoutes(app, db) {
         });
 
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
+        await refreshOfficerCountsForComplaint(db, updated);
         return res.json(toPublicDoc(updated));
     });
 
@@ -183,6 +187,7 @@ function registerComplaintRoutes(app, db) {
             created_at: new Date().toISOString(),
         });
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
+        await refreshOfficerCountsForComplaint(db, updated);
         return res.json(toPublicDoc(updated));
     });
 
@@ -211,6 +216,7 @@ function registerComplaintRoutes(app, db) {
         });
 
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
+        await refreshOfficerCountsForComplaint(db, updated);
         return res.json(toPublicDoc(updated));
     });
 

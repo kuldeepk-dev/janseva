@@ -2,6 +2,65 @@ const { ObjectId } = require("mongodb");
 const { requireAuth } = require("../middleware/auth");
 const { toPublicDoc, toPublicDocs } = require("../utils/serializers");
 
+async function recomputeOfficerComplaintCounts(db, officerDoc) {
+  if (!officerDoc) return;
+  const profileId = officerDoc.profile_id ? String(officerDoc.profile_id) : null;
+  const departmentId = officerDoc.department_id ? String(officerDoc.department_id) : null;
+  if (!profileId && !departmentId) return;
+
+  const filter = profileId && departmentId
+    ? { $or: [{ assigned_officer_id: profileId }, { assigned_department_id: departmentId }] }
+    : profileId
+      ? { assigned_officer_id: profileId }
+      : { assigned_department_id: departmentId };
+
+  const complaints = await db.collection("complaints").find(filter).toArray();
+  const totalAssigned = complaints.length;
+  const pending = complaints.filter(item => item.status !== "resolved" && item.status !== "closed").length;
+
+  await db.collection("officers").updateOne(
+    { _id: officerDoc._id },
+    {
+      $set: {
+        total_complaints_assigned: totalAssigned,
+        pending_complaints: pending,
+        updated_at: new Date().toISOString(),
+      },
+    },
+  );
+
+  if (profileId) {
+    await db.collection("profiles").updateOne(
+      { _id: new ObjectId(profileId) },
+      {
+        $set: {
+          total_complaints_assigned: totalAssigned,
+          pending_complaints: pending,
+          updated_at: new Date().toISOString(),
+        },
+      },
+    );
+  }
+
+  return { totalAssigned, pending };
+}
+
+async function refreshOfficerCountsForComplaint(db, complaint) {
+  if (!complaint) return;
+  const updates = [];
+  if (complaint.assigned_officer_id) {
+    const officer = await db.collection("officers").findOne({ profile_id: complaint.assigned_officer_id });
+    if (officer) updates.push(recomputeOfficerComplaintCounts(db, officer));
+  }
+  if (complaint.assigned_department_id) {
+    const officers = await db.collection("officers").find({ department_id: complaint.assigned_department_id }).toArray();
+    for (const officer of officers) {
+      updates.push(recomputeOfficerComplaintCounts(db, officer));
+    }
+  }
+  await Promise.all(updates);
+}
+
 function registerOfficerRoutes(app, db) {
   app.get("/departments/:id/officers", requireAuth, async (req, res) => {
     const { id } = req.params;
@@ -39,6 +98,8 @@ function registerOfficerRoutes(app, db) {
         contact: officer.contact ?? profile?.mobile ?? null,
         sla_days: officer.sla_days ?? null,
         categories: officer.categories ?? null,
+        total_complaints_assigned: officer.total_complaints_assigned ?? 0,
+        pending_complaints: officer.pending_complaints ?? 0,
       };
     });
 
@@ -72,6 +133,8 @@ function registerOfficerRoutes(app, db) {
       contact: contact ?? null,
       sla_days: parsedSla,
       categories: Array.isArray(categories) ? categories : null,
+      total_complaints_assigned: 0,
+      pending_complaints: 0,
       created_at: now,
       updated_at: now,
     };
@@ -108,6 +171,8 @@ function registerOfficerRoutes(app, db) {
 
     return res.json({ assigned, dueToday, resolvedMonth });
   });
+
+  return { recomputeOfficerComplaintCounts, refreshOfficerCountsForComplaint };
 }
 
-module.exports = { registerOfficerRoutes };
+module.exports = { registerOfficerRoutes, recomputeOfficerComplaintCounts, refreshOfficerCountsForComplaint };

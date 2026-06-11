@@ -6,12 +6,16 @@ import {
   assignComplaint,
   getComplaintById,
   getDepartments,
+  type Department,
   subAssignComplaint,
 } from "../../services/complaintService";
 import {
   getDepartmentOfficers,
   type OfficerDirectoryItem,
 } from "../../services/officerService";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import {
   Alert,
   ScrollView,
@@ -42,15 +46,19 @@ export default function ComplaintAssignmentScreen() {
   const [subCategory, setSubCategory] = useState(
     "Pothole Repair & Road Maintenance",
   );
-  const [description, setDescription] = useState("");
   const [locationText, setLocationText] = useState("");
-  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [selectedDepartmentOpen, setSelectedDepartmentOpen] = useState(false);
+  const [expectedResolutionDate, setExpectedResolutionDate] = useState("");
+  const [showExpectedResolutionPicker, setShowExpectedResolutionPicker] =
+    useState(false);
   const [note, setNote] = useState("");
   const [officers, setOfficers] = useState<OfficerDirectoryItem[]>([]);
   const [selectedOfficerId, setSelectedOfficerId] = useState<string | null>(
     null,
   );
+  const [selectedOfficerOpen, setSelectedOfficerOpen] = useState(false);
   const [isLoadingOfficers, setIsLoadingOfficers] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -77,9 +85,35 @@ export default function ComplaintAssignmentScreen() {
         return "Admin Review Queue";
     }
   };
-  const targetDepartment = useMemo(() => {
-    return resolveTargetDepartment(category);
-  }, [category]);
+  const departmentMap = useMemo(
+    () => new Map(departments.map(item => [item.id, item])),
+    [departments],
+  );
+
+  const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
+  const addDays = (date: Date, days: number) => {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  };
+  const parseDateInput = (value: string) => {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const [, year, month, day] = match;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const formatDatePickerValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const selectedDepartment = useMemo(() => {
+    if (!departmentId) return null;
+    return departmentMap.get(departmentId) ?? null;
+  }, [departmentId, departmentMap]);
 
   useEffect(() => {
     let isActive = true;
@@ -109,14 +143,18 @@ export default function ComplaintAssignmentScreen() {
         const complaintCategory = selectedComplaint.category ?? "General";
         setCategory(complaintCategory);
         setSubCategory(selectedComplaint.sub_category ?? "General");
-        setDescription(selectedComplaint.description ?? "");
         setLocationText(selectedComplaint.location_text ?? "Not specified");
-        setAttachmentUrl(selectedComplaint.attachment_url);
-        const preferredDepartment = departments.find(
-          department =>
-            department.name === resolveTargetDepartment(complaintCategory),
+        setExpectedResolutionDate(
+          formatDateInput(addDays(new Date(selectedComplaint.created_at), 7)),
         );
+        setDepartments(departments);
+        const preferredDepartment =
+          departments.find(
+            department =>
+              department.name === resolveTargetDepartment(complaintCategory),
+          ) ?? departments[0] ?? null;
         setDepartmentId(preferredDepartment?.id ?? null);
+        setSelectedDepartmentOpen(false);
       } catch (err) {
         if (!isActive) {
           return;
@@ -142,6 +180,7 @@ export default function ComplaintAssignmentScreen() {
       if (!departmentId) {
         setOfficers([]);
         setSelectedOfficerId(null);
+        setSelectedOfficerOpen(false);
         return;
       }
       setIsLoadingOfficers(true);
@@ -154,6 +193,7 @@ export default function ComplaintAssignmentScreen() {
         if (!data.some(officer => officer.profile_id === selectedOfficerId)) {
           setSelectedOfficerId(data[0]?.profile_id ?? null);
         }
+        setSelectedOfficerOpen(false);
       } catch (err) {
         if (!isActive) {
           return;
@@ -173,6 +213,18 @@ export default function ComplaintAssignmentScreen() {
       isActive = false;
     };
   }, [departmentId]);
+
+  const handleExpectedResolutionChange = (
+    event: DateTimePickerEvent,
+    selectedDate?: Date,
+  ) => {
+    if (event.type === "dismissed" || !selectedDate) {
+      setShowExpectedResolutionPicker(false);
+      return;
+    }
+    setExpectedResolutionDate(formatDatePickerValue(selectedDate));
+    setShowExpectedResolutionPicker(false);
+  };
 
   const handleSubmit = async () => {
     setError(null);
@@ -198,6 +250,9 @@ export default function ComplaintAssignmentScreen() {
         assignedDepartmentId: departmentId,
         priority: priorityValue,
         note: note.trim() || undefined,
+        expectedResolutionAt: expectedResolutionDate
+          ? new Date(expectedResolutionDate).toISOString()
+          : undefined,
       });
       if (selectedOfficerId) {
         await subAssignComplaint(
@@ -308,20 +363,6 @@ export default function ComplaintAssignmentScreen() {
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.labelSm}>Detailed Description</Text>
-          <Text style={styles.description}>
-            {description || "No description provided."}
-          </Text>
-          {attachmentUrl && (
-            <View style={styles.photoRow}>
-              <View style={styles.photo}>
-                <MaterialIcons name="image" size={32} color="#757682" />
-              </View>
-            </View>
-          )}
-        </View>
-
         <View style={styles.panel}>
           <View style={styles.panelHead}>
             <Text style={styles.panelTitle}>Assign Action</Text>
@@ -342,48 +383,95 @@ export default function ComplaintAssignmentScreen() {
           <Text style={styles.inputLabel}>Target Department</Text>
           <TouchableOpacity
             style={styles.select}
-            onPress={() => Alert.alert("Routing", targetDepartment)}
+            onPress={() => setSelectedDepartmentOpen(prev => !prev)}
           >
-            <Text style={styles.selectText}>{targetDepartment}</Text>
+            <Text style={styles.selectText}>
+              {selectedDepartment?.name ?? "Select department"}
+            </Text>
             <MaterialIcons name="expand-more" size={20} color="#757682" />
           </TouchableOpacity>
+          {selectedDepartmentOpen ? (
+            <View style={styles.selectMenu}>
+              {departments.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.selectOption}
+                  onPress={() => {
+                    setDepartmentId(item.id);
+                    setSelectedDepartmentOpen(false);
+                  }}
+                >
+                  <Text style={styles.selectOptionText}>{item.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
 
           <Text style={styles.inputLabel}>Available Officers</Text>
-          {isLoadingOfficers ? (
-            <Text style={styles.muted}>Loading officers...</Text>
-          ) : officers.length ? (
-            <View style={styles.officerRow}>
-              {officers.map(officer => {
-                const isActive = officer.profile_id === selectedOfficerId;
-                return (
-                  <TouchableOpacity
-                    key={officer.id}
-                    
-                    style={[
-                      styles.officerChip,
-                      isActive && styles.officerChipActive,
-                    ]}
-                    onPress={() =>
-                      setSelectedOfficerId(officer.profile_id ?? null)
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.officerChipText,
-                        isActive && styles.officerChipTextActive,
-                      ]}
-                    >
-                      {officer.full_name ?? officer.email ?? "Officer"}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ) : (
-            <Text style={styles.muted}>
-              No officers found for this department.
+          <TouchableOpacity
+            style={styles.select}
+            onPress={() => setSelectedOfficerOpen(prev => !prev)}
+            disabled={isLoadingOfficers || !officers.length}
+          >
+            <Text style={styles.selectText}>
+              {selectedOfficerId
+                ? officers.find(item => item.profile_id === selectedOfficerId)
+                    ?.full_name ?? "Select officer"
+                : "Select officer"}
             </Text>
-          )}
+            <MaterialIcons name="expand-more" size={20} color="#757682" />
+          </TouchableOpacity>
+          {selectedOfficerOpen ? (
+            <View style={styles.selectMenu}>
+              {isLoadingOfficers ? (
+                <Text style={styles.selectOptionText}>Loading officers...</Text>
+              ) : officers.length ? (
+                officers.map(officer => {
+                  const isActive = officer.profile_id === selectedOfficerId;
+                  return (
+                    <TouchableOpacity
+                      key={officer.id}
+                      style={styles.officerOption}
+                      onPress={() => {
+                        setSelectedOfficerId(officer.profile_id ?? null);
+                        setSelectedOfficerOpen(false);
+                      }}
+                    >
+                      <View style={styles.officerOptionLeft}>
+                        <Text style={styles.selectOptionText}>
+                          {officer.full_name ?? officer.email ?? "Officer"}
+                        </Text>
+                        <Text style={styles.officerOptionSub}>
+                          {officer.email ?? "No email"}
+                        </Text>
+                      </View>
+                      <View style={styles.officerBadges}>
+                        <View style={styles.officerBadge}>
+                          <Text style={styles.officerBadgeText}>
+                            {officer.total_complaints_assigned ?? 0} total
+                          </Text>
+                        </View>
+                        <View style={[styles.officerBadge, styles.officerBadgePending]}>
+                          <Text style={[styles.officerBadgeText, styles.officerBadgeTextPending]}>
+                            {officer.pending_complaints ?? 0} pending
+                          </Text>
+                        </View>
+                        {isActive ? (
+                          <View style={styles.officerBadgeActive}>
+                            <Text style={styles.officerBadgeActiveText}>Selected</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <Text style={styles.selectOptionText}>
+                  No officers found for this department.
+                </Text>
+              )}
+            </View>
+          ) : null}
 
           <Text style={styles.inputLabel}>Priority Level</Text>
           <View style={styles.priorityRow}>
@@ -419,10 +507,28 @@ export default function ComplaintAssignmentScreen() {
           />
 
           <Text style={styles.inputLabel}>Expected Resolution Date</Text>
-          <View style={styles.select}>
-            <TextInput style={styles.dateInput} defaultValue="2023-11-20" />
+          <TouchableOpacity
+            style={styles.select}
+            onPress={() => setShowExpectedResolutionPicker(true)}
+          >
+            <Text
+              style={[
+                styles.selectText,
+                !expectedResolutionDate && styles.selectPlaceholder,
+              ]}
+            >
+              {expectedResolutionDate || "Select date"}
+            </Text>
             <MaterialIcons name="calendar-today" size={18} color="#757682" />
-          </View>
+          </TouchableOpacity>
+          {showExpectedResolutionPicker ? (
+            <DateTimePicker
+              value={parseDateInput(expectedResolutionDate) ?? new Date()}
+              mode="date"
+              display="default"
+              onChange={handleExpectedResolutionChange}
+            />
+          ) : null}
 
           <TouchableOpacity
             style={styles.submit}
@@ -540,18 +646,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   mapBtnText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
-  description: { color: "#121C28", fontSize: 16, lineHeight: 24 },
-  photoRow: { flexDirection: "row", gap: 8, marginTop: 2 },
-  photo: {
-    width: 102,
-    height: 102,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    backgroundColor: "#D9E3F4",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   panel: {
     borderWidth: 1,
     borderColor: "#C5C5D3",
@@ -597,6 +691,50 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   selectText: { color: "#121C28", fontSize: 14 },
+  selectPlaceholder: { color: "#757682" },
+  selectMenu: {
+    marginHorizontal: 14,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  selectOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF0F6",
+  },
+  selectOptionText: { color: "#121C28", fontSize: 13, fontWeight: "500" },
+  officerOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF0F6",
+    gap: 8,
+  },
+  officerOptionLeft: { gap: 2 },
+  officerOptionSub: { color: "#757682", fontSize: 11 },
+  officerBadges: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  officerBadge: {
+    backgroundColor: "#EEF4FF",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  officerBadgePending: { backgroundColor: "#FFF2D8" },
+  officerBadgeText: { color: "#1E3A8A", fontSize: 10, fontWeight: "700" },
+  officerBadgeTextPending: { color: "#9A5B00" },
+  officerBadgeActive: {
+    alignSelf: "flex-start",
+    backgroundColor: "#D9F7E8",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  officerBadgeActiveText: { color: "#00714D", fontSize: 10, fontWeight: "700" },
   priorityRow: {
     marginHorizontal: 14,
     flexDirection: "row",
@@ -641,22 +779,4 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   submitText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
-  officerRow: {
-    marginHorizontal: 14,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 2,
-  },
-  officerChip: {
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "#FFFFFF",
-  },
-  officerChipActive: { borderColor: "#00236F", backgroundColor: "#E5EEFF" },
-  officerChipText: { color: "#444651", fontSize: 12, fontWeight: "600" },
-  officerChipTextActive: { color: "#00236F" },
 });
