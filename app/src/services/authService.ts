@@ -11,6 +11,15 @@ export type Profile = {
   updated_at: string;
 };
 
+export type CitizenDirectoryItem = {
+  id: string;
+  profile_id: string | null;
+  full_name: string | null;
+  voter_id: string | null;
+  mobile: string | null;
+  booth_number: string | null;
+};
+
 function normalizePhone(mobile: string) {
   const trimmed = mobile.replace(/\s+/g, "");
   if (trimmed.startsWith("+")) {
@@ -43,6 +52,22 @@ export async function verifyOtp(mobile: string, token: string) {
   return data;
 }
 
+export async function getCitizenDirectory() {
+  return apiFetch<CitizenDirectoryItem[]>("/auth/citizen-directory");
+}
+
+export async function signInCitizenProfile(profileId: string) {
+  const data = await apiFetch<{ token: string; profile: Profile }>(
+    "/auth/citizen/login",
+    {
+      method: "POST",
+      body: JSON.stringify({ profile_id: profileId }),
+    },
+  );
+  await setAuthToken(data.token);
+  return data;
+}
+
 export async function signInStaff(email: string, password: string) {
   const data = await apiFetch<{ token: string; profile: Profile }>(
     "/auth/staff/login",
@@ -58,6 +83,14 @@ export async function signInStaff(email: string, password: string) {
 export async function getCurrentProfile(): Promise<Profile | null> {
   try {
     return await apiFetch<Profile | null>("/profiles/me");
+  } catch {
+    return null;
+  }
+}
+
+export async function getProfileById(id: string): Promise<Profile | null> {
+  try {
+    return await apiFetch<Profile | null>(`/profiles/${id}`);
   } catch {
     return null;
   }

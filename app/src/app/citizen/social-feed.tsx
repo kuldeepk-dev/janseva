@@ -86,7 +86,9 @@ export default function SocialFeedScreen() {
           title: item.title ?? "Update",
           desc: item.content ?? "",
           tag: item.category ?? "Update",
-          tagTone: item.category === "Health" ? "blue" : "green",
+          tagTone: (item.category === "Health" ? "blue" : "green") as
+            | "green"
+            | "blue",
           time: item.published_at
             ? new Date(item.published_at).toLocaleDateString()
             : "Just now",

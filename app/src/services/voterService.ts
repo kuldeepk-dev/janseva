@@ -1,11 +1,18 @@
 import { apiFetch } from "../lib/api";
 
+export type FamilyMember = {
+  name: string;
+  relation: string;
+  gender: "male" | "female" | "other";
+};
+
 export type Voter = {
   id: string;
   profile_id: string | null;
   full_name: string | null;
   father_name: string | null;
   dob: string | null;
+  anniversary: string | null;
   mobile: string | null;
   voter_id: string | null;
   occupation: string | null;
@@ -14,6 +21,10 @@ export type Voter = {
   panchayat: string | null;
   booth_number: string | null;
   photo_url: string | null;
+  family_members: FamilyMember[] | null;
+  family_size: number | null;
+  male_count: number | null;
+  female_count: number | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

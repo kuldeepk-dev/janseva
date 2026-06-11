@@ -1,13 +1,18 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import {
+  getCitizenDirectory,
+  type CitizenDirectoryItem,
   getCurrentProfile,
+  signInCitizenProfile,
   signInStaff,
   verifyOtp,
 } from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
 import { ROLE_HOME } from "../../constants/permissions";
+import { apiFetch } from "../../lib/api";
 import {
   Alert,
   Image,
@@ -25,6 +30,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type Role = "citizen" | "operator" | "officer" | "leader" | "admin";
+type OfficerDirectoryItem = {
+  id: string;
+  profile_id: string | null;
+  full_name: string | null;
+  email: string | null;
+  department_id: string | null;
+};
 const DEMO_CITIZEN_MOBILE = "9999999999";
 const DEMO_CITIZEN_OTP = "123456";
 const DEMO_ROLE_CREDENTIALS: Record<
@@ -32,7 +44,7 @@ const DEMO_ROLE_CREDENTIALS: Record<
   { email: string; password: string }
 > = {
   operator: { email: "operator@janseva.local", password: "Demo@12345" },
-  officer: { email: "officer@janseva.local", password: "Demo@12345" },
+  officer: { email: "rajesh.sharma@janseva.local", password: "Officer@12345" },
   leader: { email: "leader@janseva.local", password: "Demo@12345" },
   admin: { email: "admin@janseva.local", password: "Demo@12345" },
 };
@@ -45,7 +57,16 @@ export default function LoginScreen() {
   const [mobile, setMobile] = useState(DEMO_CITIZEN_MOBILE);
   const [staffEmail, setStaffEmail] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [citizenDirectory, setCitizenDirectory] = useState<CitizenDirectoryItem[]>([]);
+  const [selectedCitizenProfileId, setSelectedCitizenProfileId] = useState<string | null>(null);
+  const [isCitizenDropdownOpen, setIsCitizenDropdownOpen] = useState(false);
+  const [officerDirectory, setOfficerDirectory] = useState<OfficerDirectoryItem[]>([]);
+  const [selectedOfficerId, setSelectedOfficerId] = useState<string | null>(null);
+  const [isOfficerDropdownOpen, setIsOfficerDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingCitizens, setIsLoadingCitizens] = useState(false);
+  const [isLoadingOfficers, setIsLoadingOfficers] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const toAppRole = (value: string): Role => value as Role;
@@ -64,6 +85,60 @@ export default function LoginScreen() {
     }
   }, [role]);
 
+  useEffect(() => {
+    let isActive = true;
+
+    const loadCitizens = async () => {
+      if (role !== "citizen" || isNewCitizen) {
+        setCitizenDirectory([]);
+        setSelectedCitizenProfileId(null);
+        setIsCitizenDropdownOpen(false);
+        return;
+      }
+      if (apiConfigError) return;
+      setIsLoadingCitizens(true);
+      try {
+        const data = await getCitizenDirectory();
+        if (!isActive) return;
+        setCitizenDirectory(data);
+        setSelectedCitizenProfileId(prev => prev ?? data[0]?.profile_id ?? null);
+      } catch (err) {
+        if (!isActive) return;
+        setError(err instanceof Error ? err.message : "Failed to load citizens.");
+      } finally {
+        if (isActive) setIsLoadingCitizens(false);
+      }
+    };
+
+    const loadOfficers = async () => {
+      if (role !== "officer") {
+        setOfficerDirectory([]);
+        setSelectedOfficerId(null);
+        setIsOfficerDropdownOpen(false);
+        return;
+      }
+      if (apiConfigError) return;
+      setIsLoadingOfficers(true);
+      try {
+        const data = await apiFetch<OfficerDirectoryItem[]>("/auth/officer-directory");
+        if (!isActive) return;
+        setOfficerDirectory(data);
+        setSelectedOfficerId(prev => prev ?? data[0]?.id ?? null);
+      } catch (err) {
+        if (!isActive) return;
+        setError(err instanceof Error ? err.message : "Failed to load officers.");
+      } finally {
+        if (isActive) setIsLoadingOfficers(false);
+      }
+    };
+
+    void loadCitizens();
+    void loadOfficers();
+    return () => {
+      isActive = false;
+    };
+  }, [isNewCitizen, role]);
+
   if (isHydrated && isLoggedIn && userRole) {
     return <Redirect href={ROLE_HOME[userRole] as never} />;
   }
@@ -72,12 +147,24 @@ export default function LoginScreen() {
     setRole(nextRole);
     if (nextRole === "citizen") {
       setMobile(DEMO_CITIZEN_MOBILE);
+      setSelectedCitizenProfileId(null);
+      setIsCitizenDropdownOpen(false);
       setStaffEmail("");
       setStaffPassword("");
+      setShowPassword(false);
+      return;
+    }
+    if (nextRole === "officer") {
+      setStaffEmail("");
+      setStaffPassword(DEMO_ROLE_CREDENTIALS.officer.password);
+      setShowPassword(false);
+      setSelectedOfficerId(null);
+      setIsOfficerDropdownOpen(false);
       return;
     }
     setStaffEmail(DEMO_ROLE_CREDENTIALS[nextRole].email);
     setStaffPassword(DEMO_ROLE_CREDENTIALS[nextRole].password);
+    setShowPassword(false);
   };
 
   const handlePrimary = async () => {
@@ -87,6 +174,26 @@ export default function LoginScreen() {
         setError(apiConfigError);
         login("citizen");
         router.replace((isNewCitizen ? "/register" : "/dashboard") as never);
+        return;
+      }
+      if (!isNewCitizen) {
+        if (!selectedCitizenProfileId) {
+          setError("Select a citizen from the list.");
+          return;
+        }
+        setIsLoading(true);
+        try {
+          const result = await signInCitizenProfile(selectedCitizenProfileId);
+          const resolvedRole = toAppRole(result.profile?.role ?? "citizen");
+          login(resolvedRole);
+          router.replace("/dashboard" as never);
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Citizen login failed.";
+          setError(message);
+        } finally {
+          setIsLoading(false);
+        }
         return;
       }
       setIsLoading(true);
@@ -144,13 +251,18 @@ export default function LoginScreen() {
         router.replace("/officer" as never);
         return;
       }
-      if (!staffEmail.trim() || !staffPassword) {
-        setError("Enter staff email and password.");
+      const selectedOfficer = officerDirectory.find(item => item.id === selectedOfficerId);
+      if (!selectedOfficer) {
+        setError("Select an officer from the list.");
+        return;
+      }
+      if (!selectedOfficer.email || !staffPassword) {
+        setError("Select an officer and enter the password.");
         return;
       }
       setIsLoading(true);
       try {
-        const result = await signInStaff(staffEmail.trim(), staffPassword);
+        const result = await signInStaff(selectedOfficer.email, staffPassword);
         const resolvedRole = toAppRole(result.profile?.role ?? role);
         login(resolvedRole);
         router.replace(
@@ -262,39 +374,190 @@ export default function LoginScreen() {
 
               {role === "citizen" ? (
                 <>
-                  <Text style={styles.label}>Mobile Number</Text>
-                  <View style={styles.inputWrap}>
-                    <Text style={styles.prefix}>+91</Text>
-                    <TextInput
-                      placeholder="Enter 10-digit number"
-                      keyboardType="phone-pad"
-                      style={styles.input}
-                      maxLength={10}
-                      value={mobile}
-                      onChangeText={setMobile}
-                      editable={false}
-                    />
-                  </View>
+                  {!isNewCitizen ? (
+                    <>
+                      <Text style={styles.label}>Select Citizen</Text>
+                      <View style={styles.dropdown}>
+                        <TouchableOpacity
+                          style={styles.dropdownBtn}
+                          onPress={() =>
+                            setIsCitizenDropdownOpen(prev => !prev)
+                          }
+                        >
+                          <Text style={styles.dropdownText}>
+                            {citizenDirectory.find(
+                              item => item.profile_id === selectedCitizenProfileId,
+                            )?.full_name ?? "Choose citizen"}
+                          </Text>
+                          <MaterialIcons name="expand-more" size={20} color="#757682" />
+                        </TouchableOpacity>
+                        {isCitizenDropdownOpen ? (
+                          <View style={styles.dropdownMenu}>
+                            <ScrollView
+                              nestedScrollEnabled
+                              style={styles.dropdownScroll}
+                              keyboardShouldPersistTaps="handled"
+                              showsVerticalScrollIndicator
+                            >
+                              {isLoadingCitizens ? (
+                                <Text style={styles.dropdownLoading}>
+                                  Loading citizens...
+                                </Text>
+                              ) : citizenDirectory.length ? (
+                                citizenDirectory.map(item => {
+                                  const active =
+                                    item.profile_id === selectedCitizenProfileId;
+                                  return (
+                                    <TouchableOpacity
+                                      key={item.id}
+                                      style={[
+                                        styles.dropdownItem,
+                                        active && styles.dropdownItemActive,
+                                      ]}
+                                      onPress={() => {
+                                        setSelectedCitizenProfileId(item.profile_id);
+                                        setIsCitizenDropdownOpen(false);
+                                      }}
+                                    >
+                                      <Text style={styles.dropdownItemText}>
+                                        {item.full_name ?? "Citizen"}
+                                      </Text>
+                                      <Text style={styles.dropdownItemSub}>
+                                        {item.voter_id ?? item.mobile ?? "No voter ID"}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  );
+                                })
+                              ) : (
+                                <Text style={styles.dropdownLoading}>
+                                  No citizens available.
+                                </Text>
+                              )}
+                            </ScrollView>
+                          </View>
+                        ) : null}
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.label}>Mobile Number</Text>
+                      <View style={styles.inputWrap}>
+                        <Text style={styles.prefix}>+91</Text>
+                        <TextInput
+                          placeholder="Enter 10-digit number"
+                          keyboardType="phone-pad"
+                          style={styles.input}
+                          maxLength={10}
+                          value={mobile}
+                          onChangeText={setMobile}
+                          editable={false}
+                        />
+                      </View>
+                    </>
+                  )}
                 </>
               ) : (
                 <>
-                  <Text style={styles.label}>Email</Text>
-                  <TextInput
-                    placeholder="Enter staff email"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    style={styles.input}
-                    value={staffEmail}
-                    onChangeText={setStaffEmail}
-                  />
+                  {role === "officer" ? (
+                    <>
+                      <Text style={styles.label}>Select Officer</Text>
+                      <View style={styles.dropdown}>
+                        <TouchableOpacity
+                          style={styles.dropdownBtn}
+                          onPress={() =>
+                            setIsOfficerDropdownOpen(prev => !prev)
+                          }
+                        >
+                          <Text style={styles.dropdownText}>
+                            {officerDirectory.find(item => item.id === selectedOfficerId)?.full_name ??
+                              "Choose officer"}
+                          </Text>
+                          <MaterialIcons name="expand-more" size={20} color="#757682" />
+                        </TouchableOpacity>
+                        {isOfficerDropdownOpen ? (
+                          <View style={styles.dropdownMenu}>
+                            <ScrollView
+                              nestedScrollEnabled
+                              style={styles.dropdownScroll}
+                              keyboardShouldPersistTaps="handled"
+                              showsVerticalScrollIndicator
+                            >
+                              {isLoadingOfficers ? (
+                                <Text style={styles.dropdownLoading}>
+                                  Loading officers...
+                                </Text>
+                              ) : officerDirectory.length ? (
+                                officerDirectory.map(item => {
+                                  const active = item.id === selectedOfficerId;
+                                  return (
+                                    <TouchableOpacity
+                                      key={item.id}
+                                      style={[
+                                        styles.dropdownItem,
+                                        active && styles.dropdownItemActive,
+                                      ]}
+                                      onPress={() => {
+                                        setSelectedOfficerId(item.id);
+                                        setIsOfficerDropdownOpen(false);
+                                      }}
+                                    >
+                                      <Text style={styles.dropdownItemText}>
+                                        {item.full_name ?? "Officer"}
+                                      </Text>
+                                      <Text style={styles.dropdownItemSub}>
+                                        {item.email ?? "No email"}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  );
+                                })
+                              ) : (
+                                <Text style={styles.dropdownLoading}>
+                                  No officers available.
+                                </Text>
+                              )}
+                            </ScrollView>
+                          </View>
+                        ) : null}
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.label}>Email</Text>
+                      <TextInput
+                        placeholder="Enter staff email"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        style={styles.input}
+                        value={staffEmail}
+                        onChangeText={setStaffEmail}
+                      />
+                    </>
+                  )}
                   <Text style={styles.label}>Password</Text>
-                  <TextInput
-                    placeholder="Enter password"
-                    secureTextEntry
-                    style={styles.input}
-                    value={staffPassword}
-                    onChangeText={setStaffPassword}
-                  />
+                  <View style={styles.passwordWrap}>
+                    <TextInput
+                      placeholder="Enter password"
+                      secureTextEntry={!showPassword}
+                      style={styles.passwordInput}
+                      value={staffPassword}
+                      onChangeText={setStaffPassword}
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeBtn}
+                      onPress={() => setShowPassword(prev => !prev)}
+                    >
+                      <MaterialIcons
+                        name={showPassword ? "visibility-off" : "visibility"}
+                        size={20}
+                        color="#757682"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  {role === "officer" ? (
+                    <Text style={styles.helperText}>
+                      Officer password is prefilled for the seeded demo accounts.
+                    </Text>
+                  ) : null}
                 </>
               )}
 
@@ -547,7 +810,71 @@ const styles = StyleSheet.create({
     color: "#121C28",
     backgroundColor: "#F8F9FF",
   },
+  passwordWrap: {
+    height: 56,
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 8,
+    backgroundColor: "#F8F9FF",
+    flexDirection: "row",
+    alignItems: "center",
+    overflow: "hidden",
+    marginBottom: 6,
+  },
+  passwordInput: {
+    flex: 1,
+    height: "100%",
+    paddingLeft: 12,
+    paddingRight: 8,
+    fontSize: 16,
+    color: "#121C28",
+  },
+  eyeBtn: {
+    width: 44,
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   errorText: { color: "#BA1A1A", fontSize: 12, marginTop: 6 },
+  helperText: { color: "#757682", fontSize: 12, marginTop: 6 },
+  dropdown: { marginBottom: 16 },
+  dropdownBtn: {
+    height: 56,
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    backgroundColor: "#F8F9FF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dropdownText: { color: "#121C28", fontSize: 16, fontWeight: "600" },
+  dropdownMenu: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+    maxHeight: 240,
+  },
+  dropdownScroll: { maxHeight: 240 },
+  dropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF0F6",
+  },
+  dropdownItemActive: { backgroundColor: "#EAF0FF" },
+  dropdownItemText: { color: "#121C28", fontSize: 14, fontWeight: "600" },
+  dropdownItemSub: { color: "#757682", fontSize: 11, marginTop: 2 },
+  dropdownLoading: {
+    color: "#757682",
+    fontSize: 13,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
   primaryBtn: {
     height: 48,
     borderRadius: 8,

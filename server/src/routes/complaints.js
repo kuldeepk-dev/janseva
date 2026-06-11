@@ -4,6 +4,42 @@ const { toPublicDoc, toPublicDocs } = require("../utils/serializers");
 const { nextComplaintNumber } = require("../utils/complaints");
 const { refreshOfficerCountsForComplaint } = require("./officer");
 
+async function createComplaintNotifications(db, complaint, title, body) {
+    if (!complaint) return;
+    const now = new Date().toISOString();
+    const notifications = [];
+
+    if (complaint.citizen_profile_id) {
+        notifications.push({
+            recipient_profile_id: complaint.citizen_profile_id,
+            recipient_role: "citizen",
+            title,
+            body,
+            entity_type: "complaint",
+            entity_id: complaint._id.toString(),
+            created_at: now,
+            read_at: null,
+        });
+    }
+
+    if (complaint.assigned_officer_id) {
+        notifications.push({
+            recipient_profile_id: complaint.assigned_officer_id,
+            recipient_role: "officer",
+            title,
+            body,
+            entity_type: "complaint",
+            entity_id: complaint._id.toString(),
+            created_at: now,
+            read_at: null,
+        });
+    }
+
+    if (notifications.length) {
+        await db.collection("notifications").insertMany(notifications);
+    }
+}
+
 function registerComplaintRoutes(app, db) {
     function buildComplaintUpdate(status, note) {
         const now = new Date().toISOString();
@@ -46,6 +82,12 @@ function registerComplaintRoutes(app, db) {
         });
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
         await refreshOfficerCountsForComplaint(db, updated);
+        await createComplaintNotifications(
+            db,
+            updated,
+            "Complaint reassigned",
+            `Your complaint #${updated.complaint_number ?? updated._id.toString()} has been reassigned to a new officer.`,
+        );
         return res.json(toPublicDoc(updated));
     });
 
@@ -70,6 +112,12 @@ function registerComplaintRoutes(app, db) {
         // TODO: notify admin/leader
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
         await refreshOfficerCountsForComplaint(db, updated);
+        await createComplaintNotifications(
+            db,
+            updated,
+            "Complaint escalated",
+            `Your complaint #${updated.complaint_number ?? updated._id.toString()} has been escalated for further review.`,
+        );
         return res.json(toPublicDoc(updated));
     });
 
@@ -77,10 +125,15 @@ function registerComplaintRoutes(app, db) {
         const payload = req.body || {};
         const now = new Date().toISOString();
         const complaintNumber = await nextComplaintNumber(db);
+        const citizenProfileId = payload.citizen_profile_id ?? req.user.id;
+        const voter = await db.collection("voters").findOne({
+            profile_id: citizenProfileId,
+        });
         const complaint = {
             ...payload,
             complaint_number: complaintNumber,
-            citizen_profile_id: payload.citizen_profile_id ?? req.user.id,
+            citizen_profile_id: citizenProfileId,
+            voter_id: payload.voter_id ?? voter?.voter_id ?? null,
             submitted_by: payload.submitted_by ?? req.user.id,
             status: "unassigned",
             created_at: now,
@@ -166,6 +219,12 @@ function registerComplaintRoutes(app, db) {
 
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
         await refreshOfficerCountsForComplaint(db, updated);
+        await createComplaintNotifications(
+            db,
+            updated,
+            "Complaint assigned",
+            `Complaint #${updated.complaint_number ?? updated._id.toString()} has been assigned and is now ${updated.status ?? "updated"}.`,
+        );
         return res.json(toPublicDoc(updated));
     });
 
@@ -188,6 +247,12 @@ function registerComplaintRoutes(app, db) {
         });
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
         await refreshOfficerCountsForComplaint(db, updated);
+        await createComplaintNotifications(
+            db,
+            updated,
+            "Complaint status updated",
+            `Complaint #${updated.complaint_number ?? updated._id.toString()} has been marked ${status.replace(/_/g, " ")}.`,
+        );
         return res.json(toPublicDoc(updated));
     });
 
@@ -217,6 +282,12 @@ function registerComplaintRoutes(app, db) {
 
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
         await refreshOfficerCountsForComplaint(db, updated);
+        await createComplaintNotifications(
+            db,
+            updated,
+            "Complaint feedback received",
+            `Complaint #${updated.complaint_number ?? updated._id.toString()} has been ${nextStatus === "closed" ? "resolved and closed" : "reopened"}.`,
+        );
         return res.json(toPublicDoc(updated));
     });
 
@@ -243,6 +314,12 @@ function registerComplaintRoutes(app, db) {
             created_at: new Date().toISOString(),
         });
         const updated = await db.collection("complaints").findOne({ _id: new ObjectId(id) });
+        await createComplaintNotifications(
+            db,
+            updated,
+            "Complaint reopened",
+            `Complaint #${updated.complaint_number ?? updated._id.toString()} has been reopened.`,
+        );
         return res.json(toPublicDoc(updated));
     });
 }

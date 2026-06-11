@@ -7,6 +7,12 @@ function registerProfileRoutes(app, db) {
     const profile = await db.collection("profiles").findOne({ _id: new ObjectId(req.user.id) });
     return res.json(toPublicDoc(profile));
   });
+
+  app.get("/profiles/:id", requireAuth, async (req, res) => {
+    const { id } = req.params;
+    const profile = await db.collection("profiles").findOne({ _id: new ObjectId(id) });
+    return res.json(toPublicDoc(profile));
+  });
 }
 
 module.exports = { registerProfileRoutes };

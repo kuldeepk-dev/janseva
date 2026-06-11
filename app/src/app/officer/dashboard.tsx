@@ -1,91 +1,101 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useAuth } from "../../context/AuthContext";
-import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { getOfficerQueue, getOfficerStats } from "../../services/officerService";
+import type { Complaint } from "../../services/complaintService";
+import { useAuth } from "../../context/AuthContext";
 
 function StatCard({
   icon,
   label,
   value,
   valueColor,
-  urgent,
 }: {
   icon: keyof typeof MaterialIcons.glyphMap;
   label: string;
   value: string;
   valueColor: string;
-  urgent?: boolean;
 }) {
   return (
-    <View style={[styles.statCard, urgent && styles.statCardUrgent]}>
+    <View style={styles.statCard}>
       <View style={styles.statHead}>
-        <View style={[styles.statIconWrap, urgent && styles.statIconUrgent]}>
-          <MaterialIcons
-            name={icon}
-            size={20}
-            color={urgent ? "#BA1A1A" : "#00236F"}
-          />
+        <View style={styles.statIconWrap}>
+          <MaterialIcons name={icon} size={20} color="#00236F" />
         </View>
-        {urgent ? <Text style={styles.urgentTag}>URGENT</Text> : null}
       </View>
-      <Text style={[styles.statLabel, urgent && { color: "#93000A" }]}>
-        {label}
-      </Text>
+      <Text style={styles.statLabel}>{label}</Text>
       <Text style={[styles.statValue, { color: valueColor }]}>{value}</Text>
     </View>
   );
 }
 
-function ActivityItem({
-  icon,
-  title,
-  desc,
-  time,
-  tone = "default",
-}: {
-  icon: keyof typeof MaterialIcons.glyphMap;
-  title: string;
-  desc: string;
-  time: string;
-  tone?: "default" | "good" | "warn";
-}) {
-  const toneColor =
-    tone === "good" ? "#6CF8BB" : tone === "warn" ? "#FFDAD6" : "#DCE1FF";
-  const iconColor =
-    tone === "good" ? "#00714D" : tone === "warn" ? "#BA1A1A" : "#00236F";
+function QueueCard({ item, onPress }: { item: Complaint; onPress: () => void }) {
+  const priority = item.priority ?? "normal";
+  const priorityLabel =
+    priority === "critical" ? "Critical" : priority === "urgent" ? "Urgent" : "Normal";
+  const badgeStyle =
+    priority === "critical"
+      ? styles.queueBadgeCritical
+      : priority === "urgent"
+        ? styles.queueBadgeHigh
+        : styles.queueBadgeMedium;
   return (
-    <View style={styles.activityItem}>
-      <View style={[styles.activityIconWrap, { backgroundColor: toneColor }]}>
-        <MaterialIcons name={icon} size={20} color={iconColor} />
+    <TouchableOpacity style={styles.queueRow} onPress={onPress}>
+      <View style={styles.queueColMain}>
+        <Text style={styles.queueId}>{item.complaint_number ?? item.id}</Text>
+        <Text style={styles.queueCat}>{item.category ?? "Uncategorized"}</Text>
+        <Text style={styles.queueMeta}>
+          {item.sub_category ?? "No sub-category"} · {item.status ?? "unassigned"}
+        </Text>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.activityTitle}>{title}</Text>
-        <Text style={styles.activityDesc}>{desc}</Text>
-        <Text style={styles.activityTime}>{time}</Text>
+      <View style={styles.queueColRight}>
+        <Text style={badgeStyle}>{priorityLabel.toUpperCase()}</Text>
+        <Text style={styles.queueSla}>
+          {item.expected_resolution_at
+            ? `Due ${new Date(item.expected_resolution_at).toLocaleDateString()}`
+            : "No due date"}
+        </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 export default function OfficerDashboardScreen() {
   const router = useRouter();
   const { logout } = useAuth();
+  const [stats, setStats] = useState<{ assigned: number; dueToday: number; resolvedMonth: number } | null>(null);
+  const [queue, setQueue] = useState<Complaint[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+    const load = async () => {
+      try {
+        const [statsData, queueData] = await Promise.all([getOfficerStats(), getOfficerQueue()]);
+        if (!isActive) return;
+        setStats(statsData);
+        setQueue(queueData);
+      } catch (err) {
+        if (!isActive) return;
+        setError(err instanceof Error ? err.message : "Failed to load dashboard.");
+      } finally {
+        if (isActive) setIsLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity
-            onPress={() => Alert.alert("Menu", "Menu options coming soon.")}
-          >
+          <TouchableOpacity onPress={() => Alert.alert("Menu", "Menu options coming soon.")}>
             <MaterialIcons name="menu" size={22} color="#00236F" />
           </TouchableOpacity>
           <Text style={styles.brand}>Jan Seva Portal</Text>
@@ -106,130 +116,65 @@ export default function OfficerDashboardScreen() {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.welcome}>
-          <Text style={styles.officerName}>Officer Vikram Singh</Text>
-          <Text style={styles.officerMeta}>Department Officer • West Zone</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.hero}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroCopy}>
+              <Text style={styles.kicker}>Officer Workspace</Text>
+              <Text style={styles.officerName}>Live complaint control center</Text>
+              <Text style={styles.officerMeta}>
+                Review active complaints, due work, and department load in one place.
+              </Text>
+            </View>
+            <View style={styles.heroBadge}>
+              <MaterialIcons name="verified" size={18} color="#00714D" />
+              <Text style={styles.heroBadgeText}>Online</Text>
+            </View>
+          </View>
         </View>
 
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {isLoading ? <Text style={styles.muted}>Loading dashboard...</Text> : null}
+
         <View style={styles.statsGrid}>
-          <StatCard
-            icon="assignment-ind"
-            label="Assigned to me"
-            value="24"
-            valueColor="#00236F"
-          />
-          <StatCard
-            icon="warning"
-            label="Due today"
-            value="08"
-            valueColor="#BA1A1A"
-            urgent
-          />
-          <StatCard
-            icon="check-circle"
-            label="Resolved this month"
-            value="142"
-            valueColor="#121C28"
-          />
-          <StatCard
-            icon="speed"
-            label="Avg resolution time"
-            value="4.2h"
-            valueColor="#121C28"
-          />
+          <StatCard icon="assignment-ind" label="Assigned to me" value={String(stats?.assigned ?? 0)} valueColor="#00236F" />
+          <StatCard icon="warning" label="Due today" value={String(stats?.dueToday ?? 0)} valueColor="#BA1A1A" />
+          <StatCard icon="check-circle" label="Resolved this month" value={String(stats?.resolvedMonth ?? 0)} valueColor="#121C28" />
+          <StatCard icon="speed" label="Open queue" value={String(queue.filter(item => item.status !== "resolved" && item.status !== "closed").length)} valueColor="#121C28" />
         </View>
 
         <View style={styles.queueCard}>
           <View style={styles.queueHead}>
-            <Text style={styles.queueTitle}>Complaint Queue</Text>
-            <TouchableOpacity
-              style={styles.filterBtn}
-              onPress={() => Alert.alert("Filter", "Filtering coming soon.")}
-            >
-              <MaterialIcons name="filter-list" size={16} color="#00236F" />
-              <Text style={styles.filterText}>Filter</Text>
-            </TouchableOpacity>
+            <View>
+              <Text style={styles.queueTitle}>My Queue</Text>
+              <Text style={styles.queueSubtitle}>
+                Complaints currently assigned to your account or department.
+              </Text>
+            </View>
+            <View style={styles.queueCountPill}>
+              <Text style={styles.queueCountPillText}>{queue.length}</Text>
+            </View>
           </View>
 
-          <TouchableOpacity
-            style={[styles.queueRow, styles.queueOverdue]}
-            onPress={() => router.push("/officer/complaint/JSP-9821" as never)}
-          >
-            <View style={styles.queueColMain}>
-              <Text style={styles.queueId}>#JSP-9821</Text>
-              <Text style={styles.queueCat}>Sanitation & Drainage</Text>
+          {queue.length ? (
+            queue.map(item => (
+              <QueueCard
+                key={item.id}
+                item={item}
+                onPress={() => router.push(`/officer/complaint/${item.id}` as never)}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="inbox" size={28} color="#90A8FF" />
+              <Text style={styles.emptyText}>No assigned complaints found.</Text>
+              <Text style={styles.emptySubtext}>
+                Once complaints are routed to you or your department, they will appear here.
+              </Text>
             </View>
-            <View style={styles.queueColRight}>
-              <Text style={styles.queueBadgeCritical}>CRITICAL</Text>
-              <Text style={styles.queueSlaBad}>Overdue • 14h Exceeded</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.queueRow}
-            onPress={() => router.push("/officer/complaint/JSP-9844" as never)}
-          >
-            <View style={styles.queueColMain}>
-              <Text style={styles.queueId}>#JSP-9844</Text>
-              <Text style={styles.queueCat}>Street Lighting</Text>
-            </View>
-            <View style={styles.queueColRight}>
-              <Text style={styles.queueBadgeHigh}>HIGH</Text>
-              <Text style={styles.queueSla}>3h 20m left</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.queueRow}
-            onPress={() => router.push("/officer/complaint/JSP-9902" as never)}
-          >
-            <View style={styles.queueColMain}>
-              <Text style={styles.queueId}>#JSP-9902</Text>
-              <Text style={styles.queueCat}>Water Supply Issue</Text>
-            </View>
-            <View style={styles.queueColRight}>
-              <Text style={styles.queueBadgeMedium}>MEDIUM</Text>
-              <Text style={styles.queueSla}>22h 15m left</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.viewAllBtn}
-            onPress={() => Alert.alert("Queue", "Full queue list coming soon.")}
-          >
-            <Text style={styles.viewAllText}>View All 24 Complaints</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.activitySection}>
-          <Text style={styles.activityHeader}>Recent Actions</Text>
-          <ActivityItem
-            icon="task-alt"
-            tone="good"
-            title="Resolved Complaint #JSP-9755"
-            desc="Pothole repair verified at Station Road. Documentation uploaded."
-            time="15 mins ago"
-          />
-          <ActivityItem
-            icon="chat"
-            title="Added Internal Note to #JSP-9844"
-            desc="Requesting field team to visit site for luminaire assessment."
-            time="2 hours ago"
-          />
-          <ActivityItem
-            icon="priority-high"
-            tone="warn"
-            title="Escalated Complaint #JSP-9821"
-            desc="Reason: Delayed departmental approval for equipment rental."
-            time="5 hours ago"
-          />
+          )}
         </View>
       </ScrollView>
-
     </SafeAreaView>
   );
 }
@@ -259,24 +204,56 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   content: { padding: 16, gap: 14, paddingBottom: 110 },
-  welcome: { marginBottom: 2 },
+  hero: {
+    borderRadius: 18,
+    backgroundColor: "#EAF0FF",
+    borderWidth: 1,
+    borderColor: "#C9D6FF",
+    padding: 16,
+  },
+  heroTopRow: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
+  heroCopy: { flex: 1 },
+  kicker: {
+    color: "#264191",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
   officerName: { color: "#121C28", fontSize: 20, fontWeight: "600" },
-  officerMeta: { color: "#444651", fontSize: 14 },
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  officerMeta: { color: "#444651", fontSize: 14, marginTop: 4, lineHeight: 20 },
+  heroBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#D9F7E8",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  heroBadgeText: { color: "#00714D", fontSize: 11, fontWeight: "700" },
+  errorText: { color: "#BA1A1A", fontSize: 12 },
+  muted: { color: "#444651", fontSize: 14 },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 12,
+  },
   statCard: {
-    width: "48.6%",
+    width: "48%",
     borderWidth: 1,
     borderColor: "#C5C5D3",
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
-    padding: 12,
-    minHeight: 132,
+    padding: 14,
+    minHeight: 126,
     justifyContent: "space-between",
   },
-  statCardUrgent: { backgroundColor: "#FFDAD6", borderColor: "#BA1A1A" },
   statHead: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
   },
   statIconWrap: {
@@ -287,17 +264,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  statIconUrgent: { backgroundColor: "#FFFFFF" },
-  urgentTag: {
-    backgroundColor: "#BA1A1A",
-    color: "#FFFFFF",
-    fontSize: 9,
-    fontWeight: "700",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 99,
-  },
-  statLabel: { color: "#444651", fontSize: 12, marginTop: 6 },
+  statLabel: { color: "#444651", fontSize: 12, marginTop: 6, minHeight: 30, lineHeight: 16 },
   statValue: { fontSize: 34, fontWeight: "700", marginTop: 2 },
   queueCard: {
     borderWidth: 1,
@@ -315,9 +282,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  queueTitle: { fontSize: 19, color: "#121C28", fontWeight: "600" },
-  filterBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  filterText: { color: "#00236F", fontSize: 13, fontWeight: "600" },
+  queueTitle: { fontSize: 19, color: "#121C28", fontWeight: "700" },
+  queueSubtitle: { color: "#444651", fontSize: 12, marginTop: 2 },
+  queueCountPill: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  queueCountPillText: { color: "#00236F", fontSize: 13, fontWeight: "800" },
   queueRow: {
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -327,11 +302,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  queueOverdue: { backgroundColor: "#FFECEC" },
   queueColMain: { flex: 1 },
   queueId: { color: "#121C28", fontSize: 14, fontWeight: "700" },
   queueCat: { color: "#444651", fontSize: 12, marginTop: 2 },
+  queueMeta: { color: "#757682", fontSize: 11, marginTop: 2 },
   queueColRight: { alignItems: "flex-end", gap: 4 },
+  queueBadgeMedium: {
+    backgroundColor: "#DBEAFE",
+    color: "#1E40AF",
+    fontSize: 10,
+    fontWeight: "700",
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
   queueBadgeCritical: {
     backgroundColor: "#BA1A1A",
     color: "#FFFFFF",
@@ -350,49 +334,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  queueBadgeMedium: {
-    backgroundColor: "#DBEAFE",
-    color: "#1E40AF",
-    fontSize: 10,
-    fontWeight: "700",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  queueSlaBad: { color: "#BA1A1A", fontSize: 11, fontWeight: "700" },
   queueSla: { color: "#444651", fontSize: 11 },
-  viewAllBtn: { padding: 12, backgroundColor: "#EEF4FF", alignItems: "center" },
-  viewAllText: {
-    color: "#00236F",
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  activitySection: { gap: 10 },
-  activityHeader: { color: "#121C28", fontSize: 20, fontWeight: "600" },
-  activityItem: {
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    padding: 12,
-    flexDirection: "row",
-    gap: 10,
-  },
-  activityIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  emptyState: {
+    padding: 18,
     alignItems: "center",
-    justifyContent: "center",
+    gap: 8,
   },
-  activityTitle: { color: "#121C28", fontSize: 14, fontWeight: "600" },
-  activityDesc: {
-    color: "#444651",
+  emptyText: { color: "#757682", fontSize: 12, fontStyle: "italic", textAlign: "center" },
+  emptySubtext: {
+    color: "#8C8E99",
     fontSize: 12,
-    lineHeight: 17,
-    marginTop: 2,
+    lineHeight: 18,
+    textAlign: "center",
   },
-  activityTime: { color: "#757682", fontSize: 11, marginTop: 4 },
 });

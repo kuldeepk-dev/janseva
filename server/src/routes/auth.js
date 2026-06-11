@@ -5,6 +5,60 @@ const { toPublicDoc } = require("../utils/serializers");
 function registerAuthRoutes(app, db, { DEV_OTP_ECHO }) {
   const DEMO_MOBILE = "+919999999999";
   const DEMO_OTP = "123456";
+
+  app.get("/auth/citizen-directory", async (req, res) => {
+    const voters = await db
+      .collection("voters")
+      .find({ profile_id: { $exists: true, $ne: null } })
+      .sort({ full_name: 1, created_at: -1 })
+      .toArray();
+
+    return res.json(
+      voters.map(voter => ({
+        id: voter._id.toString(),
+        profile_id:
+          voter.profile_id instanceof ObjectId
+            ? voter.profile_id.toString()
+            : String(voter.profile_id || ""),
+        full_name: voter.full_name ?? null,
+        voter_id: voter.voter_id ?? null,
+        mobile: voter.mobile ?? null,
+        booth_number: voter.booth_number ?? null,
+      })),
+    );
+  });
+
+  app.get("/auth/officer-directory", async (req, res) => {
+    const officers = await db.collection("officers").find().sort({ full_name: 1 }).toArray();
+    const profileIds = officers
+      .map(item => item.profile_id)
+      .filter(Boolean)
+      .map(profileId => (profileId instanceof ObjectId ? profileId : new ObjectId(profileId)));
+
+    const profiles = await db
+      .collection("profiles")
+      .find({ _id: { $in: profileIds } })
+      .toArray();
+
+    const profileMap = new Map(profiles.map(profile => [profile._id.toString(), profile]));
+    return res.json(
+      officers.map(officer => {
+        const profileKey =
+          officer.profile_id instanceof ObjectId
+            ? officer.profile_id.toString()
+            : String(officer.profile_id || "");
+        const profile = profileMap.get(profileKey);
+        return {
+          id: officer._id.toString(),
+          profile_id: profileKey,
+          full_name: profile?.full_name ?? officer.full_name ?? null,
+          email: profile?.email ?? null,
+          department_id: officer.department_id ?? null,
+        };
+      }),
+    );
+  });
+
   app.post("/auth/otp/request", async (req, res) => {
     const { mobile } = req.body || {};
     if (!mobile) return res.status(400).send("Missing mobile number");
@@ -48,6 +102,50 @@ function registerAuthRoutes(app, db, { DEV_OTP_ECHO }) {
     }
 
     const tokenValue = createToken({ id: profile._id.toString(), role: profile.role });
+    return res.json({ token: tokenValue, profile: toPublicDoc(profile) });
+  });
+
+  app.post("/auth/citizen/login", async (req, res) => {
+    const { profile_id } = req.body || {};
+    if (!profile_id) {
+      return res.status(400).send("Missing profile_id");
+    }
+    if (!ObjectId.isValid(profile_id)) {
+      return res.status(400).send("Invalid profile_id");
+    }
+
+    const voter = await db.collection("voters").findOne({
+      profile_id: profile_id,
+    });
+    if (!voter) {
+      return res.status(404).send("Citizen voter record not found");
+    }
+
+    let profile = await db.collection("profiles").findOne({
+      _id: new ObjectId(profile_id),
+    });
+    if (!profile) {
+      const now = new Date().toISOString();
+      const result = await db.collection("profiles").insertOne({
+        role: "citizen",
+        full_name: voter.full_name ?? null,
+        mobile: voter.mobile ?? null,
+        email: null,
+        preferred_language: "en",
+        created_at: now,
+        updated_at: now,
+      });
+      profile = await db.collection("profiles").findOne({ _id: result.insertedId });
+      await db.collection("voters").updateOne(
+        { _id: voter._id },
+        { $set: { profile_id: result.insertedId.toString(), updated_at: now } },
+      );
+    }
+
+    const tokenValue = createToken({
+      id: profile._id.toString(),
+      role: "citizen",
+    });
     return res.json({ token: tokenValue, profile: toPublicDoc(profile) });
   });
 

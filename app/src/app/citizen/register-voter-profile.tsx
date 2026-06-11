@@ -1,5 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import { getCurrentProfile } from "../../services/authService";
@@ -10,6 +10,7 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import {
   createVoter,
+  type FamilyMember,
   getMyVoter,
   updateVoter,
 } from "../../services/voterService";
@@ -22,8 +23,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Modal,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -60,6 +59,7 @@ function Field({
   editable = true,
   onPress,
   onFocus,
+  disabled = false,
   rightIconName = "calendar-today",
 }: {
   label: string;
@@ -69,43 +69,54 @@ function Field({
   editable?: boolean;
   onPress?: () => void;
   onFocus?: () => void;
+  disabled?: boolean;
   rightIconName?: keyof typeof MaterialIcons.glyphMap;
 }) {
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
-      {onPress ? (
-        <TouchableOpacity style={styles.inputPressable} onPress={onPress}>
-          <Text
-            style={[
-              styles.inputPressableText,
-              !value && styles.inputPressablePlaceholder,
-            ]}
+      <View style={styles.lockWrap}>
+        {onPress ? (
+          <TouchableOpacity
+            style={[styles.inputPressable, disabled && styles.inputDisabled]}
+            onPress={disabled ? undefined : onPress}
+            activeOpacity={disabled ? 1 : 0.75}
           >
-            {value || placeholder}
-          </Text>
-          <MaterialIcons name={rightIconName} size={18} color="#757682" />
-        </TouchableOpacity>
-      ) : (
-        <TextInput
-          placeholder={placeholder}
-          placeholderTextColor="#757682"
-          style={styles.input}
-          value={value}
-          onChangeText={onChangeText}
-          editable={editable}
-          onFocus={onFocus}
-        />
-      )}
+            <Text
+              style={[
+                styles.inputPressableText,
+                !value && styles.inputPressablePlaceholder,
+                disabled && styles.disabledText,
+              ]}
+            >
+              {value || placeholder}
+            </Text>
+            <MaterialIcons
+              name={rightIconName}
+              size={18}
+              color={disabled ? "#A0A7B8" : "#757682"}
+            />
+          </TouchableOpacity>
+        ) : (
+          <TextInput
+            placeholder={placeholder}
+            placeholderTextColor="#757682"
+            style={styles.input}
+            value={value}
+            onChangeText={onChangeText}
+            editable={!disabled && editable}
+            onFocus={onFocus}
+          />
+        )}
+        {disabled ? (
+          <View pointerEvents="none" style={styles.lockOverlay}>
+            <MaterialIcons name="lock" size={16} color="#00236F" />
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
-
-type FamilyMember = {
-  name: string;
-  relation: string;
-  gender: "male" | "female" | "other";
-};
 
 const occupationOptions = [
   "Student",
@@ -125,6 +136,8 @@ const occupationOptions = [
 
 export default function RegisterVoterProfileScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const editMode = params.mode === "edit";
   const [step, setStep] = useState(1);
   const totalSteps = 4;
   const nextStep = () => setStep(prev => Math.min(prev + 1, totalSteps));
@@ -144,7 +157,7 @@ export default function RegisterVoterProfileScreen() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
-  const [familySizeInput, setFamilySizeInput] = useState("0");
+  const [familySizeInput, setFamilySizeInput] = useState("1");
   const [maleCountInput, setMaleCountInput] = useState("0");
   const [femaleCountInput, setFemaleCountInput] = useState("0");
   const [isLoading, setIsLoading] = useState(false);
@@ -156,8 +169,20 @@ export default function RegisterVoterProfileScreen() {
     useState(false);
   const scrollViewRef = useRef<ScrollView | null>(null);
   const fieldLayouts = useRef<Record<string, number>>({});
+  const activeFieldRef = useRef<string | null>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const sanitizeAlpha = (value: string) => value.replace(/[^A-Za-z\s]/g, "");
+  const parseFamilySize = (value: string) => {
+    const parsed = Number.parseInt(value || "1", 10);
+    return Number.isNaN(parsed) ? 1 : Math.max(parsed, 1);
+  };
+
+  const buildEmptyMember = (): FamilyMember => ({
+    name: "",
+    relation: "",
+    gender: "male",
+  });
 
   const openPicker = (field: "dob" | "anniversary") => {
     setActivePicker(field);
@@ -167,16 +192,45 @@ export default function RegisterVoterProfileScreen() {
     fieldLayouts.current[field] = y;
   };
 
+  const getScrollTargetY = (fieldY: number) => {
+    const topInset = Platform.OS === "ios" ? 28 : 20;
+    const keyboardInset =
+      keyboardHeight > 0 ? Math.min(keyboardHeight * 0.18, 72) : 0;
+    return Math.max(fieldY - topInset - keyboardInset, 0);
+  };
+
   const scrollToField = (field: string) => {
     const y = fieldLayouts.current[field];
     if (y === undefined || !scrollViewRef.current) {
       return;
     }
-    const targetY = Math.max(y - (keyboardHeight > 0 ? keyboardHeight * 0.3 : 32), 0);
+    const targetY = getScrollTargetY(y);
     scrollViewRef.current.scrollTo({ y: targetY, animated: true });
   };
 
-  const handleScroll = (_event: NativeSyntheticEvent<NativeScrollEvent>) => {};
+  const focusField = (field: string) => {
+    activeFieldRef.current = field;
+    if (scrollTimerRef.current) {
+      clearTimeout(scrollTimerRef.current);
+    }
+    scrollTimerRef.current = setTimeout(() => {
+      if (keyboardHeight > 0) {
+        scrollToField(field);
+      }
+    }, Platform.OS === "ios" ? 90 : 150);
+  };
+
+  const setFamilySize = (nextValue: number) => {
+    setFamilySizeInput(String(Math.max(nextValue, 1)));
+  };
+
+  const increaseFamilySize = () => {
+    setFamilySize(parseFamilySize(familySizeInput) + 1);
+  };
+
+  const decreaseFamilySize = () => {
+    setFamilySize(parseFamilySize(familySizeInput) - 1);
+  };
 
   const handleDateChange = (
     field: "dob" | "anniversary",
@@ -205,6 +259,16 @@ export default function RegisterVoterProfileScreen() {
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const showSub = Keyboard.addListener(showEvent, event => {
       setKeyboardHeight(event.endCoordinates.height);
+      if (activeFieldRef.current) {
+        if (scrollTimerRef.current) {
+          clearTimeout(scrollTimerRef.current);
+        }
+        scrollTimerRef.current = setTimeout(() => {
+          if (activeFieldRef.current) {
+            scrollToField(activeFieldRef.current);
+          }
+        }, Platform.OS === "ios" ? 40 : 70);
+      }
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
       setKeyboardHeight(0);
@@ -212,6 +276,14 @@ export default function RegisterVoterProfileScreen() {
     return () => {
       showSub.remove();
       hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+      }
     };
   }, []);
 
@@ -235,6 +307,7 @@ export default function RegisterVoterProfileScreen() {
           setFatherName(voter.father_name ?? "");
           setDob(voter.dob ?? "");
           setBirthdayReminder(voter.dob ?? "");
+          setAnniversary(voter.anniversary ?? "");
           setMobile(voter.mobile ?? profile?.mobile ?? "");
           setVoterId(voter.voter_id ?? "");
           setBoothNumber(voter.booth_number ?? "");
@@ -242,6 +315,23 @@ export default function RegisterVoterProfileScreen() {
           setVillage(voter.village ?? "");
           setPanchayat(voter.panchayat ?? "");
           setPhotoUrl(voter.photo_url ?? null);
+          const loadedMembers = voter.family_members ?? [];
+          setFamilyMembers(loadedMembers);
+          setFamilySizeInput(
+            String(Math.max(voter.family_size ?? 0, loadedMembers.length + 1, 1)),
+          );
+          setMaleCountInput(
+            String(
+              voter.male_count ??
+                loadedMembers.filter(member => member.gender === "male").length,
+            ),
+          );
+          setFemaleCountInput(
+            String(
+              voter.female_count ??
+                loadedMembers.filter(member => member.gender === "female").length,
+            ),
+          );
         } else if (profile?.mobile) {
           setMobile(profile.mobile);
         }
@@ -258,6 +348,25 @@ export default function RegisterVoterProfileScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    const expectedExtraMembers = Math.max(parseFamilySize(familySizeInput) - 1, 0);
+    setFamilyMembers(prev => {
+      if (prev.length === expectedExtraMembers) {
+        return prev;
+      }
+      if (prev.length > expectedExtraMembers) {
+        return prev.slice(0, expectedExtraMembers);
+      }
+      return [
+        ...prev,
+        ...Array.from(
+          { length: expectedExtraMembers - prev.length },
+          buildEmptyMember,
+        ),
+      ];
+    });
+  }, [familySizeInput]);
+
   const handleSubmit = async () => {
     setError(null);
     if (apiConfigError) {
@@ -267,34 +376,6 @@ export default function RegisterVoterProfileScreen() {
       return;
     }
     const nameRegex = /^[A-Za-z\s]+$/;
-    if (!fullName.trim()) {
-      setError("Full name is required.");
-      return;
-    }
-    if (!nameRegex.test(fullName.trim())) {
-      setError("Full name must contain only alphabets.");
-      return;
-    }
-    if (fatherName.trim() && !nameRegex.test(fatherName.trim())) {
-      setError("Father's / Husband's name must contain only alphabets.");
-      return;
-    }
-    if (!dob.trim()) {
-      setError("DOB is required.");
-      return;
-    }
-    if (!voterId.trim()) {
-      setError("Voter ID is required.");
-      return;
-    }
-    if (!village.trim()) {
-      setError("Village is required.");
-      return;
-    }
-    if (!panchayat.trim()) {
-      setError("Panchayat is required.");
-      return;
-    }
     const hasInvalidMember = familyMembers.some(
       member => !member.name.trim() || !member.relation.trim(),
     );
@@ -302,49 +383,95 @@ export default function RegisterVoterProfileScreen() {
       setError("Family member Name and Relation are required.");
       return;
     }
-    const totalCount = Number.parseInt(familySizeInput || "0", 10) || 0;
+    const totalCount = parseFamilySize(familySizeInput);
     const maleCount = Number.parseInt(maleCountInput || "0", 10) || 0;
     const femaleCount = Number.parseInt(femaleCountInput || "0", 10) || 0;
-    if (totalCount > 0 && maleCount + femaleCount !== totalCount) {
+    if (maleCount + femaleCount !== totalCount) {
       setError("Male + Female must equal Total Members.");
       return;
     }
+    if (!editMode) {
+      if (!fullName.trim()) {
+        setError("Full name is required.");
+        return;
+      }
+      if (!nameRegex.test(fullName.trim())) {
+        setError("Full name must contain only alphabets.");
+        return;
+      }
+      if (fatherName.trim() && !nameRegex.test(fatherName.trim())) {
+        setError("Father's / Husband's name must contain only alphabets.");
+        return;
+      }
+      if (!dob.trim()) {
+        setError("DOB is required.");
+        return;
+      }
+      if (!voterId.trim()) {
+        setError("Voter ID is required.");
+        return;
+      }
+      if (!village.trim()) {
+        setError("Village is required.");
+        return;
+      }
+      if (!panchayat.trim()) {
+        setError("Panchayat is required.");
+        return;
+      }
+    }
     setIsLoading(true);
     try {
-      await createVoter({
-        full_name: fullName.trim(),
-        father_name: fatherName.trim() || null,
-        dob: dob.trim() || null,
-        mobile: mobile.trim() || null,
-        voter_id: voterId.trim() || null,
-        booth_number: boothNumber.trim() || null,
-        occupation: occupation.trim() || null,
-        village: village.trim() || null,
-        panchayat: panchayat.trim() || null,
-        photo_url: photoUrl,
-      });
-      Alert.alert("Registration", "Profile saved successfully.");
+      if (editMode) {
+        if (!voterRecordId) {
+          throw new Error("No voter profile found to update.");
+        }
+        await updateVoter(voterRecordId, {
+          father_name: fatherName.trim() || null,
+          occupation: occupation.trim() || null,
+          village: village.trim() || null,
+          panchayat: panchayat.trim() || null,
+          anniversary: anniversary.trim() || null,
+          photo_url: photoUrl,
+          family_members: familyMembers,
+          family_size: totalCount,
+          male_count: maleCount,
+          female_count: femaleCount,
+        });
+        Alert.alert("Profile", "Edit screen updated.");
+      } else {
+        await createVoter({
+          full_name: fullName.trim(),
+          father_name: fatherName.trim() || null,
+          dob: dob.trim() || null,
+          mobile: mobile.trim() || null,
+          voter_id: voterId.trim() || null,
+          booth_number: boothNumber.trim() || null,
+          occupation: occupation.trim() || null,
+          village: village.trim() || null,
+          panchayat: panchayat.trim() || null,
+          anniversary: anniversary.trim() || null,
+          photo_url: photoUrl,
+          family_members: familyMembers,
+          family_size: totalCount,
+          male_count: maleCount,
+          female_count: femaleCount,
+        });
+        Alert.alert("Registration", "Profile saved successfully.");
+      }
       router.push("/dashboard" as never);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Registration failed.";
+        err instanceof Error ? err.message : editMode ? "Update failed." : "Registration failed.";
       setError(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const addFamilyMember = () => {
-    setFamilyMembers(prev => [
-      ...prev,
-      { name: "", relation: "", gender: "male" },
-    ]);
-  };
-
   const removeFamilyMember = (index: number) => {
-    setFamilyMembers(prev => {
-      return prev.filter((_, idx) => idx !== index);
-    });
+    setFamilyMembers(prev => prev.filter((_, idx) => idx !== index));
+    setFamilySizeInput(current => String(Math.max(parseFamilySize(current) - 1, 1)));
   };
 
   const updateFamilyMember = (
@@ -359,9 +486,10 @@ export default function RegisterVoterProfileScreen() {
     );
   };
 
-  const totalMembers = familyMembers.length;
+  const totalMembers = parseFamilySize(familySizeInput);
   const maleMembers = familyMembers.filter(m => m.gender === "male").length;
   const femaleMembers = familyMembers.filter(m => m.gender === "female").length;
+  const extraMembers = Math.max(totalMembers - 1, 0);
 
   const openGenderDropdown = (index: number) => {
     if (Platform.OS === "ios") {
@@ -505,23 +633,49 @@ export default function RegisterVoterProfileScreen() {
         style={styles.safe}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Pressable style={styles.safe} onPress={Keyboard.dismiss}>
+        <View style={styles.safe}>
           <ScrollView
             ref={scrollViewRef}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
+            automaticallyAdjustKeyboardInsets
+            nestedScrollEnabled
           >
-            <Text style={styles.title}>Voter Registration</Text>
+            <Text style={styles.title}>
+              {editMode ? "Edit Citizen Profile" : "Voter Registration"}
+            </Text>
             <Text style={styles.subtitle}>
-              Complete the form below to register a new constituent.
+              {editMode
+                ? "Review your saved details and update profile information."
+                : "Complete the form below to register a new constituent."}
             </Text>
             <Text style={styles.stepText}>
-              Step {step} of {totalSteps}
+              {editMode ? "Saved details loaded below" : `Step ${step} of ${totalSteps}`}
             </Text>
+            {editMode ? (
+              <View style={styles.quickJumpRow}>
+                <TouchableOpacity
+                  style={styles.quickJumpBtn}
+                  onPress={() => scrollToField("fullName")}
+                >
+                  <Text style={styles.quickJumpText}>Personal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickJumpBtn}
+                  onPress={() => scrollToField("village")}
+                >
+                  <Text style={styles.quickJumpText}>Address</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickJumpBtn}
+                  onPress={() => scrollToField("familySize")}
+                >
+                  <Text style={styles.quickJumpText}>Family</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -547,7 +701,7 @@ export default function RegisterVoterProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            {step === 1 ? (
+            {editMode || step === 1 ? (
               <View style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Personal Information</Text>
                 <View
@@ -560,7 +714,8 @@ export default function RegisterVoterProfileScreen() {
                     placeholder="Enter Full Name"
                     value={fullName}
                     onChangeText={value => setFullName(sanitizeAlpha(value))}
-                    onFocus={() => scrollToField("fullName")}
+                    onFocus={() => focusField("fullName")}
+                    disabled={editMode}
                   />
                 </View>
                 <View
@@ -576,7 +731,7 @@ export default function RegisterVoterProfileScreen() {
                     placeholder="Enter Name"
                     value={fatherName}
                     onChangeText={value => setFatherName(sanitizeAlpha(value))}
-                    onFocus={() => scrollToField("fatherName")}
+                    onFocus={() => focusField("fatherName")}
                   />
                 </View>
                 <View style={styles.row}>
@@ -586,6 +741,7 @@ export default function RegisterVoterProfileScreen() {
                       placeholder="Select DOB"
                       value={dob}
                       onPress={() => openPicker("dob")}
+                      disabled={editMode}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -595,15 +751,16 @@ export default function RegisterVoterProfileScreen() {
                       value={mobile}
                       onChangeText={setMobile}
                       editable={false}
+                      disabled={editMode}
                     />
                   </View>
                 </View>
               </View>
             ) : null}
 
-            {step === 2 ? (
+            {editMode || step === 2 ? (
               <View style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>Election Details</Text>
+                <Text style={styles.sectionTitle}>Location & Election Details</Text>
                 <View
                   onLayout={event =>
                     registerFieldLayout("voterId", event.nativeEvent.layout.y)
@@ -614,7 +771,8 @@ export default function RegisterVoterProfileScreen() {
                     placeholder="ABC1234567"
                     value={voterId}
                     onChangeText={setVoterId}
-                    onFocus={() => scrollToField("voterId")}
+                    onFocus={() => focusField("voterId")}
+                    disabled={editMode}
                   />
                 </View>
                 <View style={styles.row}>
@@ -632,7 +790,8 @@ export default function RegisterVoterProfileScreen() {
                       placeholder="000"
                       value={boothNumber}
                       onChangeText={setBoothNumber}
-                      onFocus={() => scrollToField("boothNumber")}
+                      onFocus={() => focusField("boothNumber")}
+                      disabled={editMode}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -655,7 +814,7 @@ export default function RegisterVoterProfileScreen() {
                     placeholder="Enter Ward or Village name"
                     value={village}
                     onChangeText={setVillage}
-                    onFocus={() => scrollToField("village")}
+                    onFocus={() => focusField("village")}
                   />
                 </View>
                 <View
@@ -671,13 +830,13 @@ export default function RegisterVoterProfileScreen() {
                     placeholder="Enter Panchayat"
                     value={panchayat}
                     onChangeText={setPanchayat}
-                    onFocus={() => scrollToField("panchayat")}
+                    onFocus={() => focusField("panchayat")}
                   />
                 </View>
               </View>
             ) : null}
 
-            {step === 3 ? (
+            {editMode || step === 3 ? (
               <View style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Milestone Reminders</Text>
                 <View style={styles.reminder}>
@@ -720,23 +879,20 @@ export default function RegisterVoterProfileScreen() {
               </View>
             ) : null}
 
-            {step === 4 ? (
+            {editMode || step === 4 ? (
               <View style={styles.sectionCard}>
                 <View style={styles.familyHead}>
                   <Text style={styles.sectionTitle}>Family Details</Text>
-                  <TouchableOpacity
-                    style={styles.addBtn}
-                    onPress={addFamilyMember}
-                  >
-                    <MaterialIcons name="add" size={14} color="#00236F" />
-                    <Text style={styles.addText}>Add Member</Text>
-                  </TouchableOpacity>
+                  {editMode ? (
+                    <Text style={styles.familyEditHint}>Editable in this mode</Text>
+                  ) : null}
                 </View>
 
                 <View style={styles.countRow}>
                   <Text style={styles.countText}>
                     Total Members: {totalMembers}
                   </Text>
+                  <Text style={styles.countText}>Added Family: {extraMembers}</Text>
                   <Text style={styles.countText}>Male: {maleMembers}</Text>
                   <Text style={styles.countText}>Female: {femaleMembers}</Text>
                 </View>
@@ -747,18 +903,33 @@ export default function RegisterVoterProfileScreen() {
                       registerFieldLayout("familySize", event.nativeEvent.layout.y)
                     }
                   >
-                    <TextInput
-                      placeholder="Enter total family members"
-                      maxLength={50}
-                      placeholderTextColor="#757682"
-                      style={styles.input}
-                      keyboardType="number-pad"
-                      value={familySizeInput}
-                      onFocus={() => scrollToField("familySize")}
-                      onChangeText={value =>
-                        setFamilySizeInput(value.replace(/[^0-9]/g, ""))
-                      }
-                    />
+                    <View style={styles.stepperWrap}>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={decreaseFamilySize}
+                      >
+                        <MaterialIcons name="remove" size={18} color="#00236F" />
+                      </TouchableOpacity>
+                      <TextInput
+                        placeholder="Minimum 1"
+                        maxLength={50}
+                        placeholderTextColor="#757682"
+                        style={[styles.input, styles.stepperInput]}
+                        keyboardType="number-pad"
+                        value={familySizeInput}
+                        onFocus={() => focusField("familySize")}
+                        onChangeText={value => {
+                          const digitsOnly = value.replace(/[^0-9]/g, "");
+                          setFamilySize(digitsOnly ? parseFamilySize(digitsOnly) : 1);
+                        }}
+                      />
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={increaseFamilySize}
+                      >
+                        <MaterialIcons name="add" size={18} color="#00236F" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
                 <View style={styles.row}>
@@ -776,7 +947,7 @@ export default function RegisterVoterProfileScreen() {
                         style={styles.input}
                         keyboardType="number-pad"
                         value={maleCountInput}
-                        onFocus={() => scrollToField("maleCount")}
+                        onFocus={() => focusField("maleCount")}
                         onChangeText={value =>
                           setMaleCountInput(value.replace(/[^0-9]/g, ""))
                         }
@@ -797,7 +968,7 @@ export default function RegisterVoterProfileScreen() {
                         style={styles.input}
                         keyboardType="number-pad"
                         value={femaleCountInput}
-                        onFocus={() => scrollToField("femaleCount")}
+                        onFocus={() => focusField("femaleCount")}
                         onChangeText={value =>
                           setFemaleCountInput(value.replace(/[^0-9]/g, ""))
                         }
@@ -806,12 +977,28 @@ export default function RegisterVoterProfileScreen() {
                   </View>
                 </View>
 
-                {familyMembers.length === 0 ? (
-                  <Text style={styles.hint}>
-                    No members added yet. Tap Add Member to add name and
-                    relation.
-                  </Text>
-                ) : null}
+                <View style={[styles.memberRow, styles.selfMemberRow]}>
+                  <View style={styles.memberNo}>
+                    <Text style={styles.memberNoText}>1</Text>
+                  </View>
+                  <View style={styles.memberFields}>
+                    <TextInput
+                      style={[styles.memberInput, styles.memberInputLocked]}
+                      value={fullName || "Citizen User"}
+                      editable={false}
+                    />
+                    <TextInput
+                      style={[styles.memberInput, styles.memberInputLocked]}
+                      value="Self"
+                      editable={false}
+                    />
+                    <TextInput
+                      style={[styles.memberInput, styles.memberInputLocked]}
+                      value={dob || "DOB"}
+                      editable={false}
+                    />
+                  </View>
+                </View>
 
                 {familyMembers.map((member, index) => (
                   <View
@@ -825,7 +1012,7 @@ export default function RegisterVoterProfileScreen() {
                     }
                   >
                     <View style={styles.memberNo}>
-                      <Text style={styles.memberNoText}>{index + 1}</Text>
+                      <Text style={styles.memberNoText}>{index + 2}</Text>
                     </View>
                     <View style={styles.memberFields}>
                       <TextInput
@@ -833,7 +1020,7 @@ export default function RegisterVoterProfileScreen() {
                         placeholderTextColor="#757682"
                         style={styles.memberInput}
                         value={member.name}
-                        onFocus={() => scrollToField(`member-${index}`)}
+                        onFocus={() => focusField(`member-${index}`)}
                         onChangeText={value =>
                           updateFamilyMember(
                             index,
@@ -847,7 +1034,7 @@ export default function RegisterVoterProfileScreen() {
                         placeholderTextColor="#757682"
                         style={styles.memberInput}
                         value={member.relation}
-                        onFocus={() => scrollToField(`member-${index}`)}
+                        onFocus={() => focusField(`member-${index}`)}
                         onChangeText={value =>
                           updateFamilyMember(
                             index,
@@ -880,26 +1067,28 @@ export default function RegisterVoterProfileScreen() {
                 ))}
 
                 <Text style={styles.hint}>
-                  Enter details of family members residing in the same
-                  household.
+                  Member 1 is fixed as the citizen profile. Extra family member
+                  rows are shown automatically from the total count.
                 </Text>
               </View>
             ) : null}
 
             <View style={styles.actions}>
-              {step > 1 ? (
+              {!editMode && step > 1 ? (
                 <TouchableOpacity style={styles.clearBtn} onPress={prevStep}>
                   <Text style={styles.clearText}>Back</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
                   style={styles.clearBtn}
-                  onPress={() => router.push("/login" as never)}
+                  onPress={() =>
+                    router.push(editMode ? "/citizen/profile" as never : "/login" as never)
+                  }
                 >
-                  <Text style={styles.clearText}>Cancel</Text>
+                  <Text style={styles.clearText}>{editMode ? "Back" : "Cancel"}</Text>
                 </TouchableOpacity>
               )}
-              {step < totalSteps ? (
+              {!editMode && step < totalSteps ? (
                 <TouchableOpacity style={styles.saveBtn} onPress={nextStep}>
                   <MaterialIcons
                     name="navigate-next"
@@ -916,7 +1105,7 @@ export default function RegisterVoterProfileScreen() {
                 >
                   <MaterialIcons name="save" size={18} color="#FFFFFF" />
                   <Text style={styles.saveText}>
-                    {isLoading ? "Saving..." : "Submit"}
+                    {isLoading ? "Saving..." : editMode ? "Save Changes" : "Submit"}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -933,7 +1122,7 @@ export default function RegisterVoterProfileScreen() {
               />
             ) : null}
           </ScrollView>
-        </Pressable>
+        </View>
       </KeyboardAvoidingView>
       <Modal
         visible={isOccupationModalVisible}
@@ -1034,6 +1223,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, color: "#00236F", fontWeight: "600" },
   subtitle: { fontSize: 14, color: "#444651" },
   stepText: { color: "#006C49", fontSize: 12, fontWeight: "700" },
+  quickJumpRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  quickJumpBtn: {
+    borderWidth: 1,
+    borderColor: "#D7DBE7",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  quickJumpText: { color: "#00236F", fontSize: 12, fontWeight: "700" },
   errorText: { color: "#BA1A1A", fontSize: 12 },
   uploadCard: {
     borderWidth: 1,
@@ -1079,6 +1278,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
   },
   field: { gap: 4 },
+  lockWrap: { position: "relative" },
+  lockOverlay: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: 8,
+    backgroundColor: "rgba(248, 249, 255, 0.56)",
+    borderWidth: 1,
+    borderColor: "rgba(210, 217, 240, 0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   label: { fontSize: 12, color: "#121C28", fontWeight: "600" },
   input: {
     height: 46,
@@ -1102,7 +1315,29 @@ const styles = StyleSheet.create({
   },
   inputPressableText: { color: "#121C28", fontSize: 14, flex: 1 },
   inputPressablePlaceholder: { color: "#757682" },
+  inputDisabled: { opacity: 0.7 },
+  disabledText: { color: "#8D95A6" },
   row: { flexDirection: "row", gap: 8 },
+  stepperWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  stepperBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    backgroundColor: "#EEF4FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperInput: {
+    flex: 1,
+    textAlign: "center",
+    fontWeight: "700",
+  },
   reminder: {
     flexDirection: "row",
     gap: 10,
@@ -1133,6 +1368,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  familyEditHint: { color: "#006C49", fontSize: 12, fontWeight: "600" },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 3 },
   addText: { color: "#00236F", fontSize: 13, fontWeight: "600" },
   memberRow: {
@@ -1166,8 +1402,17 @@ const styles = StyleSheet.create({
     color: "#121C28",
     fontSize: 13,
   },
-  countRow: { flexDirection: "row", justifyContent: "space-between" },
+  countRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   countText: { color: "#121C28", fontSize: 12, fontWeight: "600" },
+  selfMemberRow: {
+    backgroundColor: "#EEF4FF",
+    borderColor: "#D4DDF5",
+  },
   genderDropdownWrap: { gap: 4 },
   genderLabel: { color: "#444651", fontSize: 11, fontWeight: "600" },
   genderDropdownField: {
@@ -1185,6 +1430,10 @@ const styles = StyleSheet.create({
     color: "#121C28",
     fontSize: 12,
     fontWeight: "600",
+  },
+  memberInputLocked: {
+    backgroundColor: "#F1F4FB",
+    color: "#60708A",
   },
   actions: { flexDirection: "row", gap: 10, marginTop: 4 },
   saveBtn: {

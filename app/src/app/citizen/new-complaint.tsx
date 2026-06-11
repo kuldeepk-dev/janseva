@@ -196,7 +196,7 @@ export default function NewComplaintScreen() {
         description: description.trim(),
         location_text: address.trim(),
         priority: "normal",
-        attached_file: attachedFile?.name || null,
+        attachment_url: attachedFile?.uri || null,
       });
       Alert.alert(
         "Complaint Submitted",
