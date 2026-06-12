@@ -1,4 +1,4 @@
-export type Role = "citizen" | "operator" | "officer" | "leader" | "admin";
+export type Role = "citizen" | "operator" | "leader" | "admin";
 
 type RouteRule = RegExp;
 
@@ -24,14 +24,9 @@ export const ROLE_ROUTES: Record<Role, RouteRule[]> = {
     /^\/complaints\/[^/]+$/,
     /^\/operator\/assign$/,
     /^\/operator\/complaints$/,
+    /^\/operator\/complaints\/new$/,
     /^\/operator\/complaints\/[^/]+$/,
     /^\/leader\/post\/new$/,
-  ],
-  officer: [
-    /^\/officer$/,
-    /^\/officer\/queue$/,
-    /^\/officer\/profile$/,
-    /^\/officer\/complaint\/[^/]+$/,
   ],
   leader: [
     /^\/leader$/,
@@ -60,7 +55,6 @@ export const ROLE_ROUTES: Record<Role, RouteRule[]> = {
 export const ROLE_HOME: Record<Role, string> = {
   citizen: "/dashboard",
   operator: "/operator",
-  officer: "/officer",
   leader: "/leader",
   admin: "/admin/settings",
 };

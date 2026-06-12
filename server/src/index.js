@@ -13,7 +13,6 @@ const { registerProfileRoutes } = require("./routes/profiles");
 const { registerDepartmentRoutes } = require("./routes/departments");
 const { registerVoterRoutes } = require("./routes/voters");
 const { registerComplaintRoutes } = require("./routes/complaints");
-const { registerOfficerRoutes } = require("./routes/officer");
 const { registerOperatorRoutes } = require("./routes/operator");
 const { registerSocialPostRoutes } = require("./routes/socialPosts");
 const { registerWhatsappRoutes } = require("./routes/whatsapp");
@@ -70,7 +69,6 @@ async function start() {
   registerDepartmentRoutes(app, db);
   registerVoterRoutes(app, db);
   registerComplaintRoutes(app, db);
-  registerOfficerRoutes(app, db);
   registerOperatorRoutes(app, db);
   registerSocialPostRoutes(app, db);
   registerWhatsappRoutes(app, db);

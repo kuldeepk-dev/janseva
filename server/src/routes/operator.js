@@ -11,7 +11,7 @@ function registerOperatorRoutes(app, db) {
       db.collection("voters").countDocuments({ created_at: { $gte: todayISO } }),
       db.collection("complaints").countDocuments({ created_at: { $gte: todayISO } }),
       db.collection("audit_logs").countDocuments({ action: "walk_in_served", created_at: { $gte: todayISO } }),
-      db.collection("complaints").countDocuments({ status: { $in: ["unassigned", "assigned"] } })
+      db.collection("complaints").countDocuments({ status: { $nin: ["resolved", "closed"] } })
     ]);
 
     return res.json({

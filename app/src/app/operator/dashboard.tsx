@@ -248,7 +248,7 @@ export default function OperatorDashboardScreen() {
           </Text>
           <TouchableOpacity
             style={styles.primaryAction}
-            onPress={() => router.push("/complaints/new" as never)}
+            onPress={() => router.push("/operator/complaints/new" as never)}
           >
             <Text style={styles.primaryActionText}>Open Ticket</Text>
             <MaterialIcons name="support-agent" size={18} color="#FFFFFF" />
@@ -261,7 +261,7 @@ export default function OperatorDashboardScreen() {
             onPress={() => router.push("/operator/assign" as never)}
           >
             <MaterialIcons name="assignment" size={18} color="#00236F" />
-            <Text style={styles.quickText}>Assign Complaint</Text>
+            <Text style={styles.quickText}>Manage Complaints</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.quickBtn}

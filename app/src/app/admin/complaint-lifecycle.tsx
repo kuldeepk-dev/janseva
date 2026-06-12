@@ -106,8 +106,8 @@ export default function AdminComplaintLifecycleScreen() {
           <TimelineItem
             current
             title="Verification & Patching Works Underway"
-            subtitle="Current stage: officer action in progress."
-            actor="Ward Officer S. Patil"
+            subtitle="Current stage: operator action in progress."
+            actor="Operator Desk"
             time="14 Oct 2025, 10:45 AM"
           />
           <TimelineItem
@@ -117,9 +117,9 @@ export default function AdminComplaintLifecycleScreen() {
             time="13 Oct 2025, 04:30 PM"
           />
           <TimelineItem
-            title="Assigned to Ward No. 12 (Public Works)"
-            subtitle="Auto-assigned by routing engine."
-            actor="System"
+            title="Assigned to Public Works Department"
+            subtitle="Assigned to department by operator."
+            actor="Operator"
             time="13 Oct 2025, 02:15 PM"
           />
           <TimelineItem

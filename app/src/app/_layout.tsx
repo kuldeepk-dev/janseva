@@ -3,7 +3,6 @@ import { useEffect } from "react";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { CitizenBottomLayout } from "../components/CitizenBottomLayout";
 import { OperatorBottomLayout } from "../components/OperatorBottomLayout";
-import { OfficerBottomLayout } from "../components/OfficerBottomLayout";
 import { AdminBottomLayout } from "../components/AdminBottomLayout";
 import {
   canAccessRoute,
@@ -54,23 +53,6 @@ function getOperatorTab(pathname: string) {
   return null;
 }
 
-function getOfficerTab(pathname: string) {
-  if (pathname === "/officer" || pathname === "/officer/dashboard") {
-    return "home";
-  }
-  if (
-    pathname === "/officer/queue" ||
-    /^\/officer\/complaint\/[^/]+$/.test(pathname) ||
-    pathname === "/officer/complaint-view-refined"
-  ) {
-    return "queue";
-  }
-  if (pathname === "/officer/profile") {
-    return "profile";
-  }
-  return null;
-}
-
 function getAdminTab(pathname: string) {
   if (pathname === "/admin/settings") {
     return "settings";
@@ -94,8 +76,6 @@ function RouteGuard() {
   const activeTab = userRole === "citizen" ? getCitizenTab(pathname) : null;
   const activeOperatorTab =
     userRole === "operator" ? getOperatorTab(pathname) : null;
-  const activeOfficerTab =
-    userRole === "officer" ? getOfficerTab(pathname) : null;
   const activeAdminTab = userRole === "admin" ? getAdminTab(pathname) : null;
   const publicRoute = isPublicRoute(pathname);
   const isAuthorized = isLoggedIn && !!userRole && !isLoggingOut;
@@ -149,14 +129,6 @@ function RouteGuard() {
       activeOperatorTab ? (
         <OperatorBottomLayout
           activeTab={activeOperatorTab as "home" | "assign" | "profile"}
-        />
-      ) : null}
-      {isHydrated &&
-      isLoggedIn &&
-      userRole === "officer" &&
-      activeOfficerTab ? (
-        <OfficerBottomLayout
-          activeTab={activeOfficerTab as "home" | "queue" | "profile"}
         />
       ) : null}
       {isHydrated && isLoggedIn && userRole === "admin" && activeAdminTab ? (

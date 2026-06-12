@@ -3,7 +3,10 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { apiConfigError } from "../../lib/api";
-import { getAllComplaints } from "../../services/complaintService";
+import {
+  getAllComplaints,
+  type Complaint,
+} from "../../services/complaintService";
 import {
   Alert,
   ScrollView,
@@ -101,7 +104,9 @@ export default function LeadershipDashboardScreen() {
     total: 0,
     resolved: 0,
     overdue: 0,
+    escalated: 0,
   });
+  const [criticalQueue, setCriticalQueue] = useState<Complaint[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -126,7 +131,11 @@ export default function LeadershipDashboardScreen() {
           }
           return new Date(item.expected_resolution_at) < new Date();
         }).length;
-        setStats({ total, resolved, overdue });
+        const escalated = complaints.filter(
+          item => item.status === "escalated",
+        );
+        setStats({ total, resolved, overdue, escalated: escalated.length });
+        setCriticalQueue(escalated.slice(0, 3));
       } catch (err) {
         if (!isActive) {
           return;
@@ -208,6 +217,12 @@ export default function LeadershipDashboardScreen() {
             critical
           />
           <MetricCard
+            icon="campaign"
+            title="Escalated"
+            value={stats.escalated.toString()}
+            subtitle="Leadership review queue"
+          />
+          <MetricCard
             icon="person-add"
             title="Voters Registered"
             value="124.5k"
@@ -278,23 +293,31 @@ export default function LeadershipDashboardScreen() {
                 Critical Attention Queue
               </Text>
               <Text style={styles.queueHeadSub}>
-                Items requiring MLA-level sign-off or escalation
+                Operator-escalated complaints awaiting leadership review
               </Text>
             </View>
             <Text style={styles.viewAll}>View All Queue</Text>
           </View>
-          <QueueItem
-            badge="Escalated"
-            title="Water Contamination Reported in Adarsh Colony"
-            desc="Immediate intervention required. Department failed to respond within 48-hour SLA."
-            onPress={() => router.push("/complaints/CMP-2025-00923" as never)}
-          />
-          <QueueItem
-            badge="Approval Pending"
-            title="Mobile Clinic Deployment - Phase 2"
-            desc="Proposed deployment of 3 mobile units for remote wards."
-            onPress={() => router.push("/complaints/CMP-2025-00923" as never)}
-          />
+          {criticalQueue.length ? (
+            criticalQueue.map(item => (
+              <QueueItem
+                key={item.id}
+                badge="Escalated"
+                title={item.category ?? "Complaint"}
+                desc={
+                  item.description ??
+                  "Operator escalated this complaint for leadership review."
+                }
+                onPress={() => router.push(`/complaints/${item.id}` as never)}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyQueue}>
+              <Text style={styles.queueDesc}>
+                No escalated complaints are waiting for leadership review.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -527,6 +550,7 @@ const styles = StyleSheet.create({
   },
   queueTitle: { color: "#121C28", fontSize: 14, fontWeight: "700" },
   queueDesc: { color: "#444651", fontSize: 12, marginTop: 2 },
+  emptyQueue: { padding: 12 },
   approveBtn: {
     backgroundColor: "#00236F",
     borderRadius: 8,

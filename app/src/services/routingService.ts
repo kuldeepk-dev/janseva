@@ -9,15 +9,6 @@ export type RoutingRule = {
   updated_at: string;
 };
 
-export type OfficerDirectory = {
-  id: string;
-  department_id: string | null;
-  full_name: string | null;
-  contact: string | null;
-  sla_days: number | null;
-  categories: string[] | null;
-};
-
 type RoutingRulePayload = {
   category: string;
   department_id: string;
@@ -28,14 +19,6 @@ type RoutingRuleUpdate = Partial<RoutingRulePayload>;
 
 type DepartmentPayload = {
   name: string;
-  contact?: string | null;
-  sla_days?: number | null;
-  categories?: string[] | null;
-};
-
-type OfficerPayload = {
-  department_id?: string | null;
-  full_name: string;
   contact?: string | null;
   sla_days?: number | null;
   categories?: string[] | null;
@@ -85,13 +68,6 @@ export async function createDepartment(payload: DepartmentPayload) {
 export async function updateDepartment(id: string, payload: DepartmentPayload) {
   return apiFetch(`/departments/${id}`, {
     method: "PUT",
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function createOfficer(payload: OfficerPayload) {
-  return apiFetch("/officers", {
-    method: "POST",
     body: JSON.stringify(payload),
   });
 }

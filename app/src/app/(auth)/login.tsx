@@ -12,7 +12,6 @@ import {
 } from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
 import { ROLE_HOME } from "../../constants/permissions";
-import { apiFetch } from "../../lib/api";
 import {
   Alert,
   Image,
@@ -29,14 +28,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type Role = "citizen" | "operator" | "officer" | "leader" | "admin";
-type OfficerDirectoryItem = {
-  id: string;
-  profile_id: string | null;
-  full_name: string | null;
-  email: string | null;
-  department_id: string | null;
-};
+type Role = "citizen" | "operator" | "leader" | "admin";
 const DEMO_CITIZEN_MOBILE = "9999999999";
 const DEMO_CITIZEN_OTP = "123456";
 const DEMO_ROLE_CREDENTIALS: Record<
@@ -44,7 +36,6 @@ const DEMO_ROLE_CREDENTIALS: Record<
   { email: string; password: string }
 > = {
   operator: { email: "operator@janseva.local", password: "Demo@12345" },
-  officer: { email: "rajesh.sharma@janseva.local", password: "Officer@12345" },
   leader: { email: "leader@janseva.local", password: "Demo@12345" },
   admin: { email: "admin@janseva.local", password: "Demo@12345" },
 };
@@ -61,12 +52,8 @@ export default function LoginScreen() {
   const [citizenDirectory, setCitizenDirectory] = useState<CitizenDirectoryItem[]>([]);
   const [selectedCitizenProfileId, setSelectedCitizenProfileId] = useState<string | null>(null);
   const [isCitizenDropdownOpen, setIsCitizenDropdownOpen] = useState(false);
-  const [officerDirectory, setOfficerDirectory] = useState<OfficerDirectoryItem[]>([]);
-  const [selectedOfficerId, setSelectedOfficerId] = useState<string | null>(null);
-  const [isOfficerDropdownOpen, setIsOfficerDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingCitizens, setIsLoadingCitizens] = useState(false);
-  const [isLoadingOfficers, setIsLoadingOfficers] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const toAppRole = (value: string): Role => value as Role;
@@ -74,8 +61,6 @@ export default function LoginScreen() {
     switch (role) {
       case "operator":
         return "Operator";
-      case "officer":
-        return "Officer";
       case "leader":
         return "Leadership";
       case "admin":
@@ -110,30 +95,7 @@ export default function LoginScreen() {
       }
     };
 
-    const loadOfficers = async () => {
-      if (role !== "officer") {
-        setOfficerDirectory([]);
-        setSelectedOfficerId(null);
-        setIsOfficerDropdownOpen(false);
-        return;
-      }
-      if (apiConfigError) return;
-      setIsLoadingOfficers(true);
-      try {
-        const data = await apiFetch<OfficerDirectoryItem[]>("/auth/officer-directory");
-        if (!isActive) return;
-        setOfficerDirectory(data);
-        setSelectedOfficerId(prev => prev ?? data[0]?.id ?? null);
-      } catch (err) {
-        if (!isActive) return;
-        setError(err instanceof Error ? err.message : "Failed to load officers.");
-      } finally {
-        if (isActive) setIsLoadingOfficers(false);
-      }
-    };
-
     void loadCitizens();
-    void loadOfficers();
     return () => {
       isActive = false;
     };
@@ -152,14 +114,6 @@ export default function LoginScreen() {
       setStaffEmail("");
       setStaffPassword("");
       setShowPassword(false);
-      return;
-    }
-    if (nextRole === "officer") {
-      setStaffEmail("");
-      setStaffPassword(DEMO_ROLE_CREDENTIALS.officer.password);
-      setShowPassword(false);
-      setSelectedOfficerId(null);
-      setIsOfficerDropdownOpen(false);
       return;
     }
     setStaffEmail(DEMO_ROLE_CREDENTIALS[nextRole].email);
@@ -234,39 +188,6 @@ export default function LoginScreen() {
         login(resolvedRole);
         router.replace(
           (resolvedRole === "admin" ? "/admin/settings" : "/operator") as never,
-        );
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Staff login failed.";
-        setError(message);
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
-    if (role === "officer") {
-      if (apiConfigError) {
-        setError(apiConfigError);
-        login("officer");
-        router.replace("/officer" as never);
-        return;
-      }
-      const selectedOfficer = officerDirectory.find(item => item.id === selectedOfficerId);
-      if (!selectedOfficer) {
-        setError("Select an officer from the list.");
-        return;
-      }
-      if (!selectedOfficer.email || !staffPassword) {
-        setError("Select an officer and enter the password.");
-        return;
-      }
-      setIsLoading(true);
-      try {
-        const result = await signInStaff(selectedOfficer.email, staffPassword);
-        const resolvedRole = toAppRole(result.profile?.role ?? role);
-        login(resolvedRole);
-        router.replace(
-          (resolvedRole === "admin" ? "/admin/settings" : "/officer") as never,
         );
       } catch (err) {
         const message =
@@ -458,81 +379,15 @@ export default function LoginScreen() {
                 </>
               ) : (
                 <>
-                  {role === "officer" ? (
-                    <>
-                      <Text style={styles.label}>Select Officer</Text>
-                      <View style={styles.dropdown}>
-                        <TouchableOpacity
-                          style={styles.dropdownBtn}
-                          onPress={() =>
-                            setIsOfficerDropdownOpen(prev => !prev)
-                          }
-                        >
-                          <Text style={styles.dropdownText}>
-                            {officerDirectory.find(item => item.id === selectedOfficerId)?.full_name ??
-                              "Choose officer"}
-                          </Text>
-                          <MaterialIcons name="expand-more" size={20} color="#757682" />
-                        </TouchableOpacity>
-                        {isOfficerDropdownOpen ? (
-                          <View style={styles.dropdownMenu}>
-                            <ScrollView
-                              nestedScrollEnabled
-                              style={styles.dropdownScroll}
-                              keyboardShouldPersistTaps="handled"
-                              showsVerticalScrollIndicator
-                            >
-                              {isLoadingOfficers ? (
-                                <Text style={styles.dropdownLoading}>
-                                  Loading officers...
-                                </Text>
-                              ) : officerDirectory.length ? (
-                                officerDirectory.map(item => {
-                                  const active = item.id === selectedOfficerId;
-                                  return (
-                                    <TouchableOpacity
-                                      key={item.id}
-                                      style={[
-                                        styles.dropdownItem,
-                                        active && styles.dropdownItemActive,
-                                      ]}
-                                      onPress={() => {
-                                        setSelectedOfficerId(item.id);
-                                        setIsOfficerDropdownOpen(false);
-                                      }}
-                                    >
-                                      <Text style={styles.dropdownItemText}>
-                                        {item.full_name ?? "Officer"}
-                                      </Text>
-                                      <Text style={styles.dropdownItemSub}>
-                                        {item.email ?? "No email"}
-                                      </Text>
-                                    </TouchableOpacity>
-                                  );
-                                })
-                              ) : (
-                                <Text style={styles.dropdownLoading}>
-                                  No officers available.
-                                </Text>
-                              )}
-                            </ScrollView>
-                          </View>
-                        ) : null}
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.label}>Email</Text>
-                      <TextInput
-                        placeholder="Enter staff email"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        style={styles.input}
-                        value={staffEmail}
-                        onChangeText={setStaffEmail}
-                      />
-                    </>
-                  )}
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput
+                    placeholder="Enter staff email"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={styles.input}
+                    value={staffEmail}
+                    onChangeText={setStaffEmail}
+                  />
                   <Text style={styles.label}>Password</Text>
                   <View style={styles.passwordWrap}>
                     <TextInput
@@ -553,11 +408,6 @@ export default function LoginScreen() {
                       />
                     </TouchableOpacity>
                   </View>
-                  {role === "officer" ? (
-                    <Text style={styles.helperText}>
-                      Officer password is prefilled for the seeded demo accounts.
-                    </Text>
-                  ) : null}
                 </>
               )}
 
@@ -568,7 +418,6 @@ export default function LoginScreen() {
                   [
                     "citizen",
                     "operator",
-                    "officer",
                     "leader",
                     "admin",
                   ] as Role[]

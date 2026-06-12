@@ -58,7 +58,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (
           storedRole === "citizen" ||
           storedRole === "operator" ||
-          storedRole === "officer" ||
           storedRole === "leader" ||
           storedRole === "admin"
         ) {

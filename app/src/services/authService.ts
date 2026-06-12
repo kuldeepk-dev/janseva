@@ -2,7 +2,7 @@ import { apiFetch, clearAuthToken, setAuthToken } from "../lib/api";
 
 export type Profile = {
   id: string;
-  role: "citizen" | "operator" | "officer" | "leader" | "admin";
+  role: "citizen" | "operator" | "leader" | "admin";
   full_name: string | null;
   mobile: string | null;
   email: string | null;

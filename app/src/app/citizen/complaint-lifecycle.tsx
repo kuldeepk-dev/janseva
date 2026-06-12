@@ -358,9 +358,9 @@ export default function ComplaintLifecycleScreen() {
           </View>
 
           <TimelineStep
-            title="Officer Action • Current Stage"
-            subtitle="Verification & Patching Works Underway"
-            metaLeft="Ward Officer S. Patil"
+            title="Operator Action • Current Stage"
+            subtitle="Complaint is under active operator review"
+            metaLeft="Operator Desk"
             metaRight="14 Oct 2025, 10:45 AM"
             current
           />
@@ -372,8 +372,8 @@ export default function ComplaintLifecycleScreen() {
           />
           <TimelineStep
             title="Assignment"
-            subtitle="Assigned to Ward No. 12 (Public Works)"
-            metaLeft="System (Auto-Assign)"
+            subtitle="Assigned to the responsible department"
+            metaLeft="Operator Routing"
             metaRight="13 Oct 2025, 02:15 PM"
           />
           <TimelineStep

@@ -12,7 +12,7 @@ export type Database = {
       profiles: {
         Row: {
           id: string;
-          role: "citizen" | "operator" | "officer" | "leader" | "admin";
+          role: "citizen" | "operator" | "leader" | "admin";
           full_name: string | null;
           mobile: string | null;
           email: string | null;
@@ -22,7 +22,7 @@ export type Database = {
         };
         Insert: {
           id: string;
-          role: "citizen" | "operator" | "officer" | "leader" | "admin";
+          role: "citizen" | "operator" | "leader" | "admin";
           full_name?: string | null;
           mobile?: string | null;
           email?: string | null;
@@ -31,7 +31,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
-          role?: "citizen" | "operator" | "officer" | "leader" | "admin";
+          role?: "citizen" | "operator" | "leader" | "admin";
           full_name?: string | null;
           mobile?: string | null;
           email?: string | null;
@@ -131,30 +131,6 @@ export type Database = {
           category?: string | null;
         };
       };
-      officers: {
-        Row: {
-          id: string;
-          profile_id: string | null;
-          department_id: string | null;
-          designation: string | null;
-          phone: string | null;
-          active: boolean;
-        };
-        Insert: {
-          id?: string;
-          profile_id?: string | null;
-          department_id?: string | null;
-          designation?: string | null;
-          phone?: string | null;
-          active?: boolean;
-        };
-        Update: {
-          department_id?: string | null;
-          designation?: string | null;
-          phone?: string | null;
-          active?: boolean;
-        };
-      };
       complaints: {
         Row: {
           id: string;
@@ -162,13 +138,18 @@ export type Database = {
           citizen_profile_id: string | null;
           voter_id: string | null;
           submitted_by: string | null;
+          created_by_role: "citizen" | "operator" | "leader" | "admin" | null;
+          created_by_user_id: string | null;
+          created_on_behalf_of_citizen_id: string | null;
+          source: "citizen" | "operator" | null;
+          reported_citizen_name: string | null;
+          reported_citizen_mobile: string | null;
           category: string | null;
           sub_category: string | null;
           description: string | null;
           location_text: string | null;
           attachment_url: string | null;
           assigned_department_id: string | null;
-          assigned_officer_id: string | null;
           priority: "normal" | "urgent" | "critical" | null;
           status:
             | "unassigned"
@@ -180,10 +161,13 @@ export type Database = {
             | "closed"
             | "reopened"
             | null;
+          internal_notes: string | null;
           resolution_note: string | null;
+          resolution_details: string | null;
           expected_resolution_at: string | null;
           resolved_at: string | null;
           reopened_at: string | null;
+          closed_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -193,13 +177,18 @@ export type Database = {
           citizen_profile_id?: string | null;
           voter_id?: string | null;
           submitted_by?: string | null;
+          created_by_role?: "citizen" | "operator" | "leader" | "admin" | null;
+          created_by_user_id?: string | null;
+          created_on_behalf_of_citizen_id?: string | null;
+          source?: "citizen" | "operator" | null;
+          reported_citizen_name?: string | null;
+          reported_citizen_mobile?: string | null;
           category?: string | null;
           sub_category?: string | null;
           description?: string | null;
           location_text?: string | null;
           attachment_url?: string | null;
           assigned_department_id?: string | null;
-          assigned_officer_id?: string | null;
           priority?: "normal" | "urgent" | "critical" | null;
           status?:
             | "unassigned"
@@ -211,21 +200,24 @@ export type Database = {
             | "closed"
             | "reopened"
             | null;
+          internal_notes?: string | null;
           resolution_note?: string | null;
+          resolution_details?: string | null;
           expected_resolution_at?: string | null;
           resolved_at?: string | null;
           reopened_at?: string | null;
+          closed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
+          citizen_profile_id?: string | null;
           category?: string | null;
           sub_category?: string | null;
           description?: string | null;
           location_text?: string | null;
           attachment_url?: string | null;
           assigned_department_id?: string | null;
-          assigned_officer_id?: string | null;
           priority?: "normal" | "urgent" | "critical" | null;
           status?:
             | "unassigned"
@@ -237,10 +229,13 @@ export type Database = {
             | "closed"
             | "reopened"
             | null;
+          internal_notes?: string | null;
           resolution_note?: string | null;
+          resolution_details?: string | null;
           expected_resolution_at?: string | null;
           resolved_at?: string | null;
           reopened_at?: string | null;
+          closed_at?: string | null;
           updated_at?: string;
         };
       };

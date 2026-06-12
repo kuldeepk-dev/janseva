@@ -28,37 +28,6 @@ function registerAuthRoutes(app, db, { DEV_OTP_ECHO }) {
     );
   });
 
-  app.get("/auth/officer-directory", async (req, res) => {
-    const officers = await db.collection("officers").find().sort({ full_name: 1 }).toArray();
-    const profileIds = officers
-      .map(item => item.profile_id)
-      .filter(Boolean)
-      .map(profileId => (profileId instanceof ObjectId ? profileId : new ObjectId(profileId)));
-
-    const profiles = await db
-      .collection("profiles")
-      .find({ _id: { $in: profileIds } })
-      .toArray();
-
-    const profileMap = new Map(profiles.map(profile => [profile._id.toString(), profile]));
-    return res.json(
-      officers.map(officer => {
-        const profileKey =
-          officer.profile_id instanceof ObjectId
-            ? officer.profile_id.toString()
-            : String(officer.profile_id || "");
-        const profile = profileMap.get(profileKey);
-        return {
-          id: officer._id.toString(),
-          profile_id: profileKey,
-          full_name: profile?.full_name ?? officer.full_name ?? null,
-          email: profile?.email ?? null,
-          department_id: officer.department_id ?? null,
-        };
-      }),
-    );
-  });
-
   app.post("/auth/otp/request", async (req, res) => {
     const { mobile } = req.body || {};
     if (!mobile) return res.status(400).send("Missing mobile number");
@@ -156,6 +125,9 @@ function registerAuthRoutes(app, db, { DEV_OTP_ECHO }) {
 
     const staffUser = await db.collection("staff_users").findOne({ email });
     if (!staffUser) return res.status(401).send("Staff account not found");
+    if (staffUser.role === "officer") {
+      return res.status(403).send("Officer login is no longer available.");
+    }
 
     const match = await bcrypt.compare(password, staffUser.password_hash);
     if (!match) return res.status(401).send("Invalid credentials");

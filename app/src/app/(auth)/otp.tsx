@@ -54,7 +54,7 @@ export default function OtpScreen() {
     if (apiConfigError) {
       setError(apiConfigError);
       login(
-        (role as "citizen" | "operator" | "officer" | "leader") ?? "citizen",
+        (role as "citizen" | "operator" | "leader") ?? "citizen",
       );
       router.replace("/dashboard" as never);
       return;
@@ -73,15 +73,13 @@ export default function OtpScreen() {
       const profile = result.profile ?? (await getCurrentProfile());
       const resolvedRole =
         profile?.role ??
-        (role as "citizen" | "operator" | "officer" | "leader") ??
+        (role as "citizen" | "operator" | "leader") ??
         "citizen";
-      login(resolvedRole as "citizen" | "operator" | "officer" | "leader");
+      login(resolvedRole as "citizen" | "operator" | "leader");
       if (resolvedRole === "citizen" && !profile) {
         router.replace("/register" as never);
       } else if (resolvedRole === "operator") {
         router.replace("/operator" as never);
-      } else if (resolvedRole === "officer") {
-        router.replace("/officer" as never);
       } else if (resolvedRole === "leader") {
         router.replace("/leader" as never);
       } else {

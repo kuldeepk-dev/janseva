@@ -1,21 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { apiConfigError } from "../../lib/api";
-import {
-  assignComplaint,
-  getComplaintById,
-  getDepartments,
-  type Department,
-  subAssignComplaint,
-} from "../../services/complaintService";
-import {
-  getDepartmentOfficers,
-  type OfficerDirectoryItem,
-} from "../../services/officerService";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -26,8 +14,78 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { apiConfigError } from "../../lib/api";
+import {
+  getCitizenDirectory,
+  getProfileById,
+  type CitizenDirectoryItem,
+  type Profile,
+} from "../../services/authService";
+import {
+  assignComplaint,
+  createComplaint,
+  escalateComplaint,
+  getComplaintById,
+  getComplaintTimeline,
+  getDepartments,
+  updateComplaintDetails,
+  updateComplaintStatus,
+  type Complaint,
+  type ComplaintStatus,
+  type ComplaintTimelineEvent,
+  type Department,
+} from "../../services/complaintService";
 
-export default function ComplaintAssignmentScreen() {
+type Priority = "normal" | "urgent" | "critical";
+
+const STATUS_OPTIONS: Array<{
+  value: ComplaintStatus;
+  label: string;
+}> = [
+  { value: "unassigned", label: "Unassigned" },
+  { value: "assigned", label: "Assigned" },
+  { value: "acknowledged", label: "Accepted" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "resolved", label: "Resolved" },
+  { value: "escalated", label: "Escalated" },
+  { value: "closed", label: "Closed" },
+];
+
+function normalizeDateInput(date: string | null) {
+  if (!date) return "";
+  return date.slice(0, 10);
+}
+
+function parseDateInput(value: string) {
+  if (!value) {
+    return new Date();
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function StatusPill({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.statusPill, active && styles.statusPillActive]}
+      onPress={onPress}
+    >
+      <Text style={[styles.statusPillText, active && styles.statusPillTextActive]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+export default function ComplaintManagementScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const id =
@@ -36,238 +94,297 @@ export default function ComplaintAssignmentScreen() {
       : Array.isArray(params.id)
         ? params.id[0]
         : undefined;
-  const [selected, setSelected] = useState(true);
-  const [priority, setPriority] = useState<"Normal" | "Urgent" | "Critical">(
-    "Normal",
-  );
-  const [complaintId, setComplaintId] = useState<string | null>(null);
-  const [complaintNumber, setComplaintNumber] = useState("#JS-2023-8842");
-  const [category, setCategory] = useState<string>("Infrastructure");
-  const [subCategory, setSubCategory] = useState(
-    "Pothole Repair & Road Maintenance",
-  );
+  const isCreateMode = !id;
+
+  const [complaint, setComplaint] = useState<Complaint | null>(null);
+  const [timeline, setTimeline] = useState<ComplaintTimelineEvent[]>([]);
+  const [linkedCitizen, setLinkedCitizen] = useState<Profile | null>(null);
+  const [citizenDirectory, setCitizenDirectory] = useState<CitizenDirectoryItem[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [selectedCitizenProfileId, setSelectedCitizenProfileId] = useState<string | null>(null);
+  const [citizenName, setCitizenName] = useState("");
+  const [citizenMobile, setCitizenMobile] = useState("");
+  const [category, setCategory] = useState("");
+  const [subCategory, setSubCategory] = useState("");
+  const [description, setDescription] = useState("");
   const [locationText, setLocationText] = useState("");
   const [departmentId, setDepartmentId] = useState<string | null>(null);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [selectedDepartmentOpen, setSelectedDepartmentOpen] = useState(false);
+  const [priority, setPriority] = useState<Priority>("normal");
+  const [status, setStatus] = useState<ComplaintStatus>("unassigned");
   const [expectedResolutionDate, setExpectedResolutionDate] = useState("");
-  const [showExpectedResolutionPicker, setShowExpectedResolutionPicker] =
-    useState(false);
-  const [note, setNote] = useState("");
-  const [officers, setOfficers] = useState<OfficerDirectoryItem[]>([]);
-  const [selectedOfficerId, setSelectedOfficerId] = useState<string | null>(
-    null,
-  );
-  const [selectedOfficerOpen, setSelectedOfficerOpen] = useState(false);
-  const [isLoadingOfficers, setIsLoadingOfficers] = useState(false);
+  const [remarks, setRemarks] = useState("");
+  const [internalNotes, setInternalNotes] = useState("");
+  const [resolutionDetails, setResolutionDetails] = useState("");
+  const [showCitizenDropdown, setShowCitizenDropdown] = useState(false);
+  const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(false);
-  const resolveTargetDepartment = (value: string) => {
-    switch (value) {
-      case "Education":
-        return "Block Education Office";
-      case "Law & Order":
-        return "Police Station / Dist. SP Office";
-      case "Agriculture":
-        return "Agriculture Extension Office";
-      case "Job & Employment":
-        return "District Employment Office / MNREGA Cell";
-      case "Health":
-        return "PHC / District Health Office";
-      case "Infrastructure":
-        return "PWD Block Office / DISCOM";
-      case "Land Dispute":
-        return "Revenue / Tehsil Office";
-      case "Personal / Social":
-        return "Social Welfare Department";
-      default:
-        return "Admin Review Queue";
-    }
-  };
+  const [isSaving, setIsSaving] = useState(false);
+
   const departmentMap = useMemo(
     () => new Map(departments.map(item => [item.id, item])),
     [departments],
   );
 
-  const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
-  const addDays = (date: Date, days: number) => {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
-  };
-  const parseDateInput = (value: string) => {
-    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) return null;
-    const [, year, month, day] = match;
-    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  };
-  const formatDatePickerValue = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const selectedDepartment = useMemo(() => {
-    if (!departmentId) return null;
-    return departmentMap.get(departmentId) ?? null;
-  }, [departmentId, departmentMap]);
-
   useEffect(() => {
     let isActive = true;
+
     const load = async () => {
       if (apiConfigError) {
         setError(apiConfigError);
         return;
       }
-      if (!id) {
-        setError("No complaint ID provided.");
-        return;
-      }
-      setIsFetching(true);
+
+      setIsLoading(true);
       try {
-        const [departments, selectedComplaint] = await Promise.all([
+        const [departmentData, citizenData] = await Promise.all([
           getDepartments(),
-          getComplaintById(id),
+          getCitizenDirectory(),
         ]);
-        if (!isActive || !selectedComplaint) {
-          setError("No complaint found.");
-          return;
+        if (!isActive) return;
+
+        setDepartments(departmentData);
+        setCitizenDirectory(citizenData);
+
+        if (!isCreateMode && id) {
+          const [complaintData, timelineData] = await Promise.all([
+            getComplaintById(id),
+            getComplaintTimeline(id),
+          ]);
+          if (!isActive || !complaintData) return;
+
+          setComplaint(complaintData);
+          setTimeline(timelineData);
+          setSelectedCitizenProfileId(
+            complaintData.citizen_profile_id ??
+              complaintData.created_on_behalf_of_citizen_id ??
+              null,
+          );
+          setCitizenName(complaintData.reported_citizen_name ?? "");
+          setCitizenMobile(complaintData.reported_citizen_mobile ?? "");
+          setCategory(complaintData.category ?? "");
+          setSubCategory(complaintData.sub_category ?? "");
+          setDescription(complaintData.description ?? "");
+          setLocationText(complaintData.location_text ?? "");
+          setDepartmentId(complaintData.assigned_department_id ?? null);
+          setPriority((complaintData.priority ?? "normal") as Priority);
+          setStatus((complaintData.status ?? "unassigned") as ComplaintStatus);
+          setExpectedResolutionDate(
+            normalizeDateInput(complaintData.expected_resolution_at),
+          );
+          setInternalNotes(complaintData.internal_notes ?? "");
+          setResolutionDetails(complaintData.resolution_details ?? "");
+
+          const citizenId =
+            complaintData.citizen_profile_id ??
+            complaintData.created_on_behalf_of_citizen_id;
+          if (citizenId) {
+            const profile = await getProfileById(citizenId);
+            if (!isActive) return;
+            setLinkedCitizen(profile);
+            setCitizenName(prev => prev || profile?.full_name || "");
+            setCitizenMobile(prev => prev || profile?.mobile || "");
+          } else {
+            setLinkedCitizen(null);
+          }
         }
-        setComplaintId(selectedComplaint.id);
-        setComplaintNumber(
-          selectedComplaint.complaint_number ?? selectedComplaint.id,
-        );
-        const complaintCategory = selectedComplaint.category ?? "General";
-        setCategory(complaintCategory);
-        setSubCategory(selectedComplaint.sub_category ?? "General");
-        setLocationText(selectedComplaint.location_text ?? "Not specified");
-        setExpectedResolutionDate(
-          formatDateInput(addDays(new Date(selectedComplaint.created_at), 7)),
-        );
-        setDepartments(departments);
-        const preferredDepartment =
-          departments.find(
-            department =>
-              department.name === resolveTargetDepartment(complaintCategory),
-          ) ?? departments[0] ?? null;
-        setDepartmentId(preferredDepartment?.id ?? null);
-        setSelectedDepartmentOpen(false);
       } catch (err) {
-        if (!isActive) {
-          return;
-        }
-        const message = err instanceof Error ? err.message : "Failed to load.";
-        setError(message);
+        if (!isActive) return;
+        setError(err instanceof Error ? err.message : "Failed to load complaint workspace.");
       } finally {
-        if (isActive) {
-          setIsFetching(false);
-        }
+        if (isActive) setIsLoading(false);
       }
     };
+
     void load();
     return () => {
       isActive = false;
     };
-  }, [id]);
+  }, [id, isCreateMode]);
+
+  const selectedCitizen = useMemo(
+    () =>
+      citizenDirectory.find(item => item.profile_id === selectedCitizenProfileId) ??
+      null,
+    [citizenDirectory, selectedCitizenProfileId],
+  );
 
   useEffect(() => {
-    let isActive = true;
+    if (!selectedCitizen) {
+      return;
+    }
+    setCitizenName(selectedCitizen.full_name ?? "");
+    setCitizenMobile(selectedCitizen.mobile ?? "");
+  }, [selectedCitizen]);
 
-    const loadOfficers = async () => {
-      if (!departmentId) {
-        setOfficers([]);
-        setSelectedOfficerId(null);
-        setSelectedOfficerOpen(false);
-        return;
-      }
-      setIsLoadingOfficers(true);
-      try {
-        const data = await getDepartmentOfficers(departmentId);
-        if (!isActive) {
-          return;
-        }
-        setOfficers(data);
-        if (!data.some(officer => officer.profile_id === selectedOfficerId)) {
-          setSelectedOfficerId(data[0]?.profile_id ?? null);
-        }
-        setSelectedOfficerOpen(false);
-      } catch (err) {
-        if (!isActive) {
-          return;
-        }
-        const message =
-          err instanceof Error ? err.message : "Failed to load officers.";
-        setError(message);
-      } finally {
-        if (isActive) {
-          setIsLoadingOfficers(false);
-        }
-      }
-    };
-
-    void loadOfficers();
-    return () => {
-      isActive = false;
-    };
-  }, [departmentId]);
-
-  const handleExpectedResolutionChange = (
+  const handleDateChange = (
     event: DateTimePickerEvent,
     selectedDate?: Date,
   ) => {
     if (event.type === "dismissed" || !selectedDate) {
-      setShowExpectedResolutionPicker(false);
+      setShowDatePicker(false);
       return;
     }
-    setExpectedResolutionDate(formatDatePickerValue(selectedDate));
-    setShowExpectedResolutionPicker(false);
+    setExpectedResolutionDate(selectedDate.toISOString().slice(0, 10));
+    setShowDatePicker(false);
   };
 
-  const handleSubmit = async () => {
-    setError(null);
-    if (apiConfigError || !complaintId) {
-      setError(apiConfigError ?? "No complaint selected.");
-      Alert.alert("Assignment", "Complaint marked Assigned successfully.");
-      router.push("/operator" as never);
-      return;
-    }
-    if (!departmentId) {
-      setError("Department mapping not found for this category.");
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const priorityValue =
-        priority === "Urgent"
-          ? "urgent"
-          : priority === "Critical"
-            ? "critical"
-            : "normal";
-      await assignComplaint(complaintId, {
+  const handleCreateComplaint = async () => {
+    const created = await createComplaint({
+      citizen_profile_id: selectedCitizenProfileId ?? undefined,
+      created_on_behalf_of_citizen_id: selectedCitizenProfileId ?? undefined,
+      reported_citizen_name: citizenName.trim() || undefined,
+      reported_citizen_mobile: citizenMobile.trim() || undefined,
+      category: category.trim(),
+      sub_category: subCategory.trim() || undefined,
+      description: description.trim(),
+      location_text: locationText.trim(),
+      priority,
+      internal_notes: internalNotes.trim() || undefined,
+    });
+
+    if (departmentId) {
+      await assignComplaint(created.id, {
         assignedDepartmentId: departmentId,
-        priority: priorityValue,
-        note: note.trim() || undefined,
+        priority,
         expectedResolutionAt: expectedResolutionDate
           ? new Date(expectedResolutionDate).toISOString()
           : undefined,
+        internalNotes: internalNotes.trim() || undefined,
+        note: remarks.trim() || undefined,
       });
-      if (selectedOfficerId) {
-        await subAssignComplaint(
-          complaintId,
-          selectedOfficerId,
-          note.trim() || undefined,
-        );
+    }
+
+    if (status === "escalated") {
+      return escalateComplaint(
+        created.id,
+        remarks.trim() || undefined,
+        internalNotes.trim() || undefined,
+      );
+    }
+
+    if (status !== "unassigned" && status !== "assigned") {
+      return updateComplaintStatus(created.id, {
+        status,
+        note: remarks.trim() || undefined,
+        internalNotes: internalNotes.trim() || undefined,
+        resolutionDetails: resolutionDetails.trim() || undefined,
+        resolutionNote:
+          status === "resolved" || status === "closed"
+            ? resolutionDetails.trim() || remarks.trim() || undefined
+            : undefined,
+      });
+    }
+
+    return created;
+  };
+
+  const handleUpdateComplaint = async () => {
+    if (!id || !complaint) {
+      return null;
+    }
+
+    await updateComplaintDetails(id, {
+      citizenProfileId: selectedCitizenProfileId,
+      reportedCitizenName: citizenName.trim() || undefined,
+      reportedCitizenMobile: citizenMobile.trim() || undefined,
+      category: category.trim() || undefined,
+      subCategory: subCategory.trim() || undefined,
+      description: description.trim() || undefined,
+      locationText: locationText.trim() || undefined,
+      internalNotes: internalNotes.trim() || undefined,
+      resolutionDetails: resolutionDetails.trim() || undefined,
+      note: remarks.trim() || undefined,
+    });
+
+    if (departmentId) {
+      await assignComplaint(id, {
+        assignedDepartmentId: departmentId,
+        priority,
+        expectedResolutionAt: expectedResolutionDate
+          ? new Date(expectedResolutionDate).toISOString()
+          : undefined,
+        internalNotes: internalNotes.trim() || undefined,
+        note: remarks.trim() || undefined,
+      });
+    }
+
+    if (status === "escalated") {
+      return escalateComplaint(
+        id,
+        remarks.trim() || undefined,
+        internalNotes.trim() || undefined,
+      );
+    }
+
+    const shouldUpdateStatus =
+      status !== complaint.status ||
+      resolutionDetails.trim() !== (complaint.resolution_details ?? "");
+
+    if (shouldUpdateStatus) {
+      return updateComplaintStatus(id, {
+        status,
+        note: remarks.trim() || undefined,
+        internalNotes: internalNotes.trim() || undefined,
+        resolutionDetails: resolutionDetails.trim() || undefined,
+        resolutionNote:
+          status === "resolved" || status === "closed"
+            ? resolutionDetails.trim() || remarks.trim() || undefined
+            : undefined,
+      });
+    }
+
+    return getComplaintById(id);
+  };
+
+  const handleSave = async () => {
+    setError(null);
+
+    if (!category.trim() || !description.trim() || !locationText.trim()) {
+      setError("Category, description, and location are required.");
+      return;
+    }
+
+    if (!selectedCitizenProfileId && !citizenName.trim()) {
+      setError("Select a citizen or enter walk-in citizen details.");
+      return;
+    }
+
+    if (!departmentId) {
+      setError("Select a department to continue.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const result = isCreateMode
+        ? await handleCreateComplaint()
+        : await handleUpdateComplaint();
+
+      if (isCreateMode) {
+        const createdComplaint = result && "id" in result ? result : null;
+        if (createdComplaint?.id) {
+          Alert.alert("Complaint saved", "Operator complaint created successfully.");
+          router.replace(`/operator/complaints/${createdComplaint.id}` as never);
+          return;
+        }
       }
-      Alert.alert("Assignment", "Complaint marked Assigned successfully.");
-      router.push("/operator" as never);
+
+      if (!isCreateMode && id) {
+        const refreshed = await Promise.all([
+          getComplaintById(id),
+          getComplaintTimeline(id),
+        ]);
+        setComplaint(refreshed[0]);
+        setTimeline(refreshed[1]);
+      }
+
+      Alert.alert("Complaint saved", "Complaint management changes were saved.");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Assignment failed.";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Failed to save complaint.");
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -281,25 +398,19 @@ export default function ComplaintAssignmentScreen() {
               if (router.canGoBack()) {
                 router.back();
               } else {
-                router.replace("/operator" as never);
+                router.replace("/operator/complaints" as never);
               }
             }}
           >
             <MaterialIcons name="arrow-back" size={22} color="#00236F" />
           </TouchableOpacity>
-          <Text style={styles.brand}>Jan Seva Portal</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.langBtn}
-            onPress={() =>
-              Alert.alert("Language", "Language picker coming soon.")
-            }
-          >
-            <Text style={styles.langText}>English</Text>
-          </TouchableOpacity>
-          <View style={styles.avatar}>
-            <MaterialIcons name="person" size={20} color="#FFFFFF" />
+          <View>
+            <Text style={styles.brand}>Operator Complaint Desk</Text>
+            <Text style={styles.headerSub}>
+              {isCreateMode
+                ? "Create complaint on behalf of a citizen"
+                : complaint?.complaint_number ?? "Manage complaint"}
+            </Text>
           </View>
         </View>
       </View>
@@ -308,239 +419,270 @@ export default function ComplaintAssignmentScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.titleRow}>
-          <View>
-            <Text style={styles.title}>Assignment Review</Text>
-            <Text style={styles.subtitle}>
-              Review and route new citizen complaints
-            </Text>
-          </View>
-          <View style={styles.newChip}>
-            <View style={styles.dot} />
-            <Text style={styles.newChipText}>New Submission</Text>
-          </View>
-        </View>
-
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        {isFetching && !error ? (
-          <Text style={styles.muted}>Loading complaint...</Text>
-        ) : null}
-
-        <TouchableOpacity
-          style={[styles.card, selected && styles.cardSelected]}
-          onPress={() => setSelected(true)}
-        >
-          <View style={styles.cardHead}>
-            <View style={styles.iconCircle}>
-              <MaterialIcons name="assignment" size={20} color="#00236F" />
-            </View>
-            <View>
-              <Text style={styles.labelSm}>Complaint ID</Text>
-              <Text style={styles.valueLg}>{complaintNumber}</Text>
-            </View>
-          </View>
-          <Text style={styles.labelSm}>Primary Category</Text>
-          <Text style={styles.valueMd}>{category}</Text>
-          <Text style={[styles.labelSm, { marginTop: 8 }]}>Sub-Category</Text>
-          <Text style={styles.valueMd}>{subCategory}</Text>
-        </TouchableOpacity>
+        {isLoading ? <Text style={styles.muted}>Loading complaint workspace...</Text> : null}
 
         <View style={styles.card}>
-          <View style={styles.cardHead}>
-            <View style={styles.iconCircle}>
-              <MaterialIcons name="location-on" size={20} color="#00236F" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.labelSm}>Complaint Location</Text>
-              <Text style={styles.valueLg}>
-                {locationText || "Not specified"}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.inline}>
-            <MaterialIcons name="schedule" size={16} color="#757682" />
-            <Text style={styles.muted}>Submitted recently</Text>
-          </View>
-        </View>
+          <Text style={styles.sectionTitle}>Citizen</Text>
+          <Text style={styles.sectionSub}>
+            Link an existing citizen or capture walk-in details.
+          </Text>
 
-        <View style={styles.panel}>
-          <View style={styles.panelHead}>
-            <Text style={styles.panelTitle}>Assign Action</Text>
-            <Text style={styles.panelSub}>
-              Route this complaint to the field team
-            </Text>
-          </View>
-
-          <View style={styles.suggestion}>
-            <MaterialIcons name="auto-awesome" size={18} color="#00236F" />
-            <Text style={styles.suggestionText}>
-              Automated analysis suggests{" "}
-              <Text style={styles.bold}>Public Works Dept (PWD)</Text> based on
-              keywords.
-            </Text>
-          </View>
-
-          <Text style={styles.inputLabel}>Target Department</Text>
+          <Text style={styles.label}>Existing Citizen</Text>
           <TouchableOpacity
             style={styles.select}
-            onPress={() => setSelectedDepartmentOpen(prev => !prev)}
+            onPress={() => setShowCitizenDropdown(prev => !prev)}
           >
             <Text style={styles.selectText}>
-              {selectedDepartment?.name ?? "Select department"}
+              {selectedCitizen?.full_name ?? "Use manual citizen details"}
             </Text>
             <MaterialIcons name="expand-more" size={20} color="#757682" />
           </TouchableOpacity>
-          {selectedDepartmentOpen ? (
-            <View style={styles.selectMenu}>
-              {departments.map(item => (
+          {showCitizenDropdown ? (
+            <View style={styles.dropdownMenu}>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setSelectedCitizenProfileId(null);
+                  setShowCitizenDropdown(false);
+                }}
+              >
+                <Text style={styles.dropdownItemText}>Use manual citizen details</Text>
+              </TouchableOpacity>
+              {citizenDirectory.map(item => (
                 <TouchableOpacity
                   key={item.id}
-                  style={styles.selectOption}
+                  style={styles.dropdownItem}
                   onPress={() => {
-                    setDepartmentId(item.id);
-                    setSelectedDepartmentOpen(false);
+                    setSelectedCitizenProfileId(item.profile_id);
+                    setShowCitizenDropdown(false);
                   }}
                 >
-                  <Text style={styles.selectOptionText}>{item.name}</Text>
+                  <Text style={styles.dropdownItemText}>
+                    {item.full_name ?? "Citizen"}
+                  </Text>
+                  <Text style={styles.dropdownItemSub}>
+                    {item.voter_id ?? item.mobile ?? "No ID"}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
           ) : null}
 
-          <Text style={styles.inputLabel}>Available Officers</Text>
+          <Text style={styles.label}>Citizen Name</Text>
+          <TextInput
+            style={styles.input}
+            value={citizenName}
+            onChangeText={setCitizenName}
+            placeholder="Citizen or walk-in name"
+            placeholderTextColor="#757682"
+          />
+
+          <Text style={styles.label}>Citizen Mobile</Text>
+          <TextInput
+            style={styles.input}
+            value={citizenMobile}
+            onChangeText={setCitizenMobile}
+            placeholder="Mobile number"
+            placeholderTextColor="#757682"
+            keyboardType="phone-pad"
+          />
+
+          {linkedCitizen ? (
+            <Text style={styles.helperText}>
+              Linked citizen profile: {linkedCitizen.full_name ?? "Citizen"}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Complaint Details</Text>
+
+          <Text style={styles.label}>Category</Text>
+          <TextInput
+            style={styles.input}
+            value={category}
+            onChangeText={setCategory}
+            placeholder="Category"
+            placeholderTextColor="#757682"
+          />
+
+          <Text style={styles.label}>Sub-category</Text>
+          <TextInput
+            style={styles.input}
+            value={subCategory}
+            onChangeText={setSubCategory}
+            placeholder="Sub-category"
+            placeholderTextColor="#757682"
+          />
+
+          <Text style={styles.label}>Description</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            placeholder="Describe the issue"
+            placeholderTextColor="#757682"
+          />
+
+          <Text style={styles.label}>Location</Text>
+          <TextInput
+            style={styles.input}
+            value={locationText}
+            onChangeText={setLocationText}
+            placeholder="Complaint location"
+            placeholderTextColor="#757682"
+          />
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Operator Handling</Text>
+
+          <Text style={styles.label}>Department</Text>
           <TouchableOpacity
             style={styles.select}
-            onPress={() => setSelectedOfficerOpen(prev => !prev)}
-            disabled={isLoadingOfficers || !officers.length}
+            onPress={() => setShowDepartmentDropdown(prev => !prev)}
           >
             <Text style={styles.selectText}>
-              {selectedOfficerId
-                ? officers.find(item => item.profile_id === selectedOfficerId)
-                    ?.full_name ?? "Select officer"
-                : "Select officer"}
+              {departmentId
+                ? departmentMap.get(departmentId)?.name ?? "Department"
+                : "Select department"}
             </Text>
             <MaterialIcons name="expand-more" size={20} color="#757682" />
           </TouchableOpacity>
-          {selectedOfficerOpen ? (
-            <View style={styles.selectMenu}>
-              {isLoadingOfficers ? (
-                <Text style={styles.selectOptionText}>Loading officers...</Text>
-              ) : officers.length ? (
-                officers.map(officer => {
-                  const isActive = officer.profile_id === selectedOfficerId;
-                  return (
-                    <TouchableOpacity
-                      key={officer.id}
-                      style={styles.officerOption}
-                      onPress={() => {
-                        setSelectedOfficerId(officer.profile_id ?? null);
-                        setSelectedOfficerOpen(false);
-                      }}
-                    >
-                      <View style={styles.officerOptionLeft}>
-                        <Text style={styles.selectOptionText}>
-                          {officer.full_name ?? officer.email ?? "Officer"}
-                        </Text>
-                        <Text style={styles.officerOptionSub}>
-                          {officer.email ?? "No email"}
-                        </Text>
-                      </View>
-                      <View style={styles.officerBadges}>
-                        <View style={styles.officerBadge}>
-                          <Text style={styles.officerBadgeText}>
-                            {officer.total_complaints_assigned ?? 0} total
-                          </Text>
-                        </View>
-                        <View style={[styles.officerBadge, styles.officerBadgePending]}>
-                          <Text style={[styles.officerBadgeText, styles.officerBadgeTextPending]}>
-                            {officer.pending_complaints ?? 0} pending
-                          </Text>
-                        </View>
-                        {isActive ? (
-                          <View style={styles.officerBadgeActive}>
-                            <Text style={styles.officerBadgeActiveText}>Selected</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })
-              ) : (
-                <Text style={styles.selectOptionText}>
-                  No officers found for this department.
-                </Text>
-              )}
+          {showDepartmentDropdown ? (
+            <View style={styles.dropdownMenu}>
+              {departments.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setDepartmentId(item.id);
+                    setShowDepartmentDropdown(false);
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>{item.name}</Text>
+                  <Text style={styles.dropdownItemSub}>{item.category ?? "General"}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
           ) : null}
 
-          <Text style={styles.inputLabel}>Priority Level</Text>
+          <Text style={styles.label}>Priority</Text>
           <View style={styles.priorityRow}>
-            {(["Normal", "Urgent", "Critical"] as const).map(level => {
-              const active = priority === level;
-              return (
-                <TouchableOpacity
-                  key={level}
-                  style={[styles.priorityBtn, active && styles.priorityActive]}
-                  onPress={() => setPriority(level)}
-                >
-                  <Text
-                    style={[
-                      styles.priorityText,
-                      active && styles.priorityActiveText,
-                    ]}
-                  >
-                    {level}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            {(["normal", "urgent", "critical"] as Priority[]).map(level => (
+              <StatusPill
+                key={level}
+                active={priority === level}
+                label={level.replace(/^./, value => value.toUpperCase())}
+                onPress={() => setPriority(level)}
+              />
+            ))}
           </View>
 
-          <Text style={styles.inputLabel}>Notes to Department</Text>
-          <TextInput
-            multiline
-            style={styles.notes}
-            placeholder="Add specific instructions for the field officer..."
-            placeholderTextColor="#757682"
-            value={note}
-            onChangeText={setNote}
-          />
+          <Text style={styles.label}>Status</Text>
+          <View style={styles.statusGrid}>
+            {STATUS_OPTIONS.map(option => (
+              <StatusPill
+                key={option.value}
+                active={status === option.value}
+                label={option.label}
+                onPress={() => setStatus(option.value)}
+              />
+            ))}
+          </View>
 
-          <Text style={styles.inputLabel}>Expected Resolution Date</Text>
+          <Text style={styles.label}>Expected Resolution Date</Text>
           <TouchableOpacity
             style={styles.select}
-            onPress={() => setShowExpectedResolutionPicker(true)}
+            onPress={() => setShowDatePicker(true)}
           >
-            <Text
-              style={[
-                styles.selectText,
-                !expectedResolutionDate && styles.selectPlaceholder,
-              ]}
-            >
-              {expectedResolutionDate || "Select date"}
+            <Text style={styles.selectText}>
+              {expectedResolutionDate || "Select expected resolution date"}
             </Text>
             <MaterialIcons name="calendar-today" size={18} color="#757682" />
           </TouchableOpacity>
-          {showExpectedResolutionPicker ? (
+          {showDatePicker ? (
             <DateTimePicker
-              value={parseDateInput(expectedResolutionDate) ?? new Date()}
+              value={parseDateInput(expectedResolutionDate)}
               mode="date"
               display="default"
-              onChange={handleExpectedResolutionChange}
+              onChange={handleDateChange}
             />
           ) : null}
 
+          <Text style={styles.label}>Remarks / Timeline Note</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={remarks}
+            onChangeText={setRemarks}
+            multiline
+            placeholder="Short note for the complaint timeline"
+            placeholderTextColor="#757682"
+          />
+
+          <Text style={styles.label}>Internal Notes</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={internalNotes}
+            onChangeText={setInternalNotes}
+            multiline
+            placeholder="Internal operator notes"
+            placeholderTextColor="#757682"
+          />
+
+          <Text style={styles.label}>Resolution Details</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={resolutionDetails}
+            onChangeText={setResolutionDetails}
+            multiline
+            placeholder="Resolution summary or closure details"
+            placeholderTextColor="#757682"
+          />
+
           <TouchableOpacity
-            style={styles.submit}
-            onPress={handleSubmit}
-            disabled={isLoading}
+            style={styles.saveButton}
+            onPress={handleSave}
+            disabled={isSaving}
           >
-            <MaterialIcons name="send" size={18} color="#FFFFFF" />
-            <Text style={styles.submitText}>
-              {isLoading ? "Submitting..." : "Submit Assignment"}
+            <MaterialIcons name="save" size={18} color="#FFFFFF" />
+            <Text style={styles.saveButtonText}>
+              {isSaving
+                ? "Saving..."
+                : isCreateMode
+                  ? "Create Complaint"
+                  : "Save Complaint Changes"}
             </Text>
           </TouchableOpacity>
         </View>
+
+        {!isCreateMode ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Timeline</Text>
+            {timeline.length ? (
+              timeline.map(event => (
+                <View key={event.id} style={styles.timelineRow}>
+                  <View style={styles.timelineDot} />
+                  <View style={styles.timelineBody}>
+                    <Text style={styles.timelineStatus}>
+                      {(event.new_status ?? "updated").replace(/_/g, " ")}
+                    </Text>
+                    <Text style={styles.timelineNote}>
+                      {event.note ?? "Complaint updated"}
+                    </Text>
+                    <Text style={styles.timelineMeta}>
+                      {new Date(event.created_at).toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.muted}>No timeline events recorded yet.</Text>
+            )}
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -556,227 +698,109 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  brand: { color: "#00236F", fontSize: 22, fontWeight: "700" },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  langBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
-  langText: { color: "#444651", fontSize: 14, fontWeight: "600" },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#1E3A8A",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  content: { padding: 16, gap: 12, paddingBottom: 100 },
-  titleRow: { gap: 8 },
-  title: { color: "#00236F", fontSize: 28, fontWeight: "700" },
-  subtitle: { color: "#444651", fontSize: 14 },
-  errorText: { color: "#BA1A1A", fontSize: 12 },
-  newChip: {
-    alignSelf: "flex-start",
-    backgroundColor: "#6CF8BB",
-    borderRadius: 99,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#006C49" },
-  newChipText: { color: "#00714D", fontSize: 13, fontWeight: "700" },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  iconBtn: { padding: 4 },
+  brand: { color: "#00236F", fontSize: 20, fontWeight: "700" },
+  headerSub: { color: "#5A6272", fontSize: 12 },
+  content: { padding: 16, gap: 12, paddingBottom: 120 },
   card: {
     borderWidth: 1,
     borderColor: "#C5C5D3",
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: "#FFFFFF",
     padding: 14,
-    gap: 8,
-  },
-  cardSelected: { borderColor: "#006C49", backgroundColor: "#F0FFF7" },
-  cardHead: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 10,
-    marginBottom: 2,
   },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#E5EEFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  labelSm: {
-    color: "#757682",
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    fontWeight: "700",
-  },
-  valueLg: { color: "#121C28", fontSize: 20, fontWeight: "700" },
-  valueMd: { color: "#121C28", fontSize: 16, fontWeight: "600" },
-  inline: { flexDirection: "row", alignItems: "center", gap: 6 },
-  muted: { color: "#444651", fontSize: 14 },
-  mapBox: {
-    marginTop: 4,
-    height: 96,
-    borderRadius: 8,
+  sectionTitle: { color: "#121C28", fontSize: 18, fontWeight: "700" },
+  sectionSub: { color: "#5A6272", fontSize: 12, lineHeight: 18 },
+  label: { color: "#444651", fontSize: 12, fontWeight: "700" },
+  input: {
     borderWidth: 1,
-    borderColor: "#C5C5D3",
-    backgroundColor: "#DFE9FA",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mapBtn: {
-    backgroundColor: "#00236F",
-    borderRadius: 99,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  mapBtnText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
-  panel: {
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    overflow: "hidden",
-    paddingBottom: 14,
-  },
-  panelHead: { backgroundColor: "#DCE1FF", padding: 14 },
-  panelTitle: { color: "#00236F", fontSize: 20, fontWeight: "700" },
-  panelSub: { color: "#264191", fontSize: 12, marginTop: 2 },
-  suggestion: {
-    margin: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#B6C4FF",
-    borderRadius: 8,
-    backgroundColor: "#EEF4FF",
-    padding: 10,
-    flexDirection: "row",
-    gap: 8,
-  },
-  suggestionText: { flex: 1, color: "#121C28", fontSize: 12, lineHeight: 18 },
-  bold: { fontWeight: "700" },
-  inputLabel: {
-    marginHorizontal: 14,
-    marginTop: 2,
-    marginBottom: 6,
-    color: "#444651",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  select: {
-    marginHorizontal: 14,
-    height: 46,
-    borderWidth: 1,
-    borderColor: "#757682",
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  selectText: { color: "#121C28", fontSize: 14 },
-  selectPlaceholder: { color: "#757682" },
-  selectMenu: {
-    marginHorizontal: 14,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-    overflow: "hidden",
-  },
-  selectOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEF0F6",
-  },
-  selectOptionText: { color: "#121C28", fontSize: 13, fontWeight: "500" },
-  officerOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEF0F6",
-    gap: 8,
-  },
-  officerOptionLeft: { gap: 2 },
-  officerOptionSub: { color: "#757682", fontSize: 11 },
-  officerBadges: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  officerBadge: {
-    backgroundColor: "#EEF4FF",
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  officerBadgePending: { backgroundColor: "#FFF2D8" },
-  officerBadgeText: { color: "#1E3A8A", fontSize: 10, fontWeight: "700" },
-  officerBadgeTextPending: { color: "#9A5B00" },
-  officerBadgeActive: {
-    alignSelf: "flex-start",
-    backgroundColor: "#D9F7E8",
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  officerBadgeActiveText: { color: "#00714D", fontSize: 10, fontWeight: "700" },
-  priorityRow: {
-    marginHorizontal: 14,
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 2,
-  },
-  priorityBtn: {
-    flex: 1,
-    height: 40,
-    borderWidth: 1,
-    borderColor: "#757682",
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  priorityActive: { backgroundColor: "#6CF8BB", borderColor: "#006C49" },
-  priorityText: { color: "#444651", fontSize: 12, fontWeight: "700" },
-  priorityActiveText: { color: "#00714D" },
-  notes: {
-    marginHorizontal: 14,
-    minHeight: 88,
-    borderWidth: 1,
-    borderColor: "#757682",
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
+    borderColor: "#D6D8E2",
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     color: "#121C28",
+    fontSize: 14,
+    backgroundColor: "#FFFFFF",
+  },
+  textArea: {
+    minHeight: 96,
     textAlignVertical: "top",
   },
-  dateInput: { flex: 1, color: "#121C28", fontSize: 14, paddingVertical: 0 },
-  submit: {
-    marginHorizontal: 14,
-    marginTop: 12,
+  select: {
+    borderWidth: 1,
+    borderColor: "#D6D8E2",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+  },
+  selectText: { color: "#121C28", fontSize: 14, flex: 1, paddingRight: 10 },
+  dropdownMenu: {
+    borderWidth: 1,
+    borderColor: "#D6D8E2",
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  dropdownItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF0F6",
+  },
+  dropdownItemText: { color: "#121C28", fontSize: 13, fontWeight: "600" },
+  dropdownItemSub: { color: "#757682", fontSize: 11, marginTop: 2 },
+  priorityRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  statusGrid: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  statusPill: {
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#FFFFFF",
+  },
+  statusPillActive: {
+    borderColor: "#006C49",
+    backgroundColor: "#6CF8BB",
+  },
+  statusPillText: { color: "#444651", fontSize: 12, fontWeight: "600" },
+  statusPillTextActive: { color: "#00714D" },
+  saveButton: {
+    marginTop: 4,
     height: 48,
-    borderRadius: 8,
+    borderRadius: 10,
     backgroundColor: "#00236F",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
+    gap: 8,
   },
-  submitText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  saveButtonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  helperText: { color: "#5A6272", fontSize: 12 },
+  errorText: { color: "#BA1A1A", fontSize: 12 },
+  muted: { color: "#757682", fontSize: 12 },
+  timelineRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#00236F",
+    marginTop: 6,
+  },
+  timelineBody: { flex: 1, gap: 2 },
+  timelineStatus: {
+    color: "#00236F",
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  timelineNote: { color: "#444651", fontSize: 13 },
+  timelineMeta: { color: "#757682", fontSize: 11 },
 });

@@ -138,8 +138,16 @@ export default function OperatorComplaintListScreen() {
       >
         <Text style={styles.title}>Complaints</Text>
         <Text style={styles.subtitle}>
-          Select a complaint to review details and assign.
+          Review, update, and close complaints from one operator queue.
         </Text>
+
+        <TouchableOpacity
+          style={styles.createBtn}
+          onPress={() => router.push("/operator/complaints/new" as never)}
+        >
+          <MaterialIcons name="add" size={18} color="#FFFFFF" />
+          <Text style={styles.createBtnText}>Create On Behalf of Citizen</Text>
+        </TouchableOpacity>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -164,6 +172,8 @@ export default function OperatorComplaintListScreen() {
               ? "Resolved"
               : item.status === "closed"
                 ? "Closed"
+                : item.status === "acknowledged"
+                  ? "Accepted"
                 : item.status === "in_progress"
                   ? "In Progress"
                   : item.status === "assigned"
@@ -174,7 +184,9 @@ export default function OperatorComplaintListScreen() {
           const statusTone =
             item.status === "resolved" || item.status === "closed"
               ? "resolved"
-              : item.status === "in_progress" || item.status === "assigned"
+              : item.status === "in_progress" ||
+                  item.status === "assigned" ||
+                  item.status === "acknowledged"
                 ? "progress"
                 : "open";
 
@@ -273,4 +285,14 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 11, fontWeight: "700" },
   muted: { color: "#6B7280", fontSize: 12 },
+  createBtn: {
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: "#00236F",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  createBtnText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 });

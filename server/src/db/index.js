@@ -1,5 +1,5 @@
 const { MongoClient } = require("mongodb");
-const { seedDepartments, seedOfficers, seedDemoComplaints, seedAdmin, seedDemoStaff } = require("./seed");
+const { seedDepartments, seedDemoComplaints, seedAdmin, seedDemoStaff } = require("./seed");
 
 let db;
 
@@ -11,8 +11,6 @@ async function connectDb({
   SEED_DATA_ENABLED,
   DEMO_STAFF_SEED_ENABLED,
   DEMO_STAFF_PASSWORD,
-  OFFICER_SEED_PASSWORD,
-  OFFICER_SEED_EMAIL_DOMAIN,
   DEMO_COMPLAINTS_SEED_ENABLED,
 }) {
   const client = new MongoClient(MONGODB_URI);
@@ -20,7 +18,6 @@ async function connectDb({
   db = client.db();
   if (SEED_DATA_ENABLED) {
     await seedDepartments(db);
-    await seedOfficers(db, { OFFICER_SEED_PASSWORD, OFFICER_SEED_EMAIL_DOMAIN });
     if (DEMO_COMPLAINTS_SEED_ENABLED) {
       await seedDemoComplaints(db);
     }

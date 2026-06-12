@@ -2,7 +2,7 @@ create extension if not exists "pgcrypto";
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  role text not null check (role in ('citizen','operator','officer','leader','admin')),
+  role text not null check (role in ('citizen','operator','leader','admin')),
   full_name text,
   mobile text unique,
   email text,
@@ -45,34 +45,33 @@ create table if not exists public.departments (
   created_at timestamp with time zone not null default now()
 );
 
-create table if not exists public.officers (
-  id uuid primary key default gen_random_uuid(),
-  profile_id uuid references public.profiles(id) on delete set null,
-  department_id uuid references public.departments(id) on delete set null,
-  designation text,
-  phone text,
-  active boolean not null default true
-);
-
 create table if not exists public.complaints (
   id uuid primary key default gen_random_uuid(),
   complaint_number text unique,
   citizen_profile_id uuid references public.profiles(id) on delete set null,
   voter_id uuid references public.voters(id) on delete set null,
   submitted_by uuid references public.profiles(id) on delete set null,
+  created_by_role text check (created_by_role in ('citizen','operator','leader','admin')),
+  created_by_user_id uuid references public.profiles(id) on delete set null,
+  created_on_behalf_of_citizen_id uuid references public.profiles(id) on delete set null,
+  source text check (source in ('citizen','operator')),
+  reported_citizen_name text,
+  reported_citizen_mobile text,
   category text,
   sub_category text,
   description text,
   location_text text,
   attachment_url text,
   assigned_department_id uuid references public.departments(id) on delete set null,
-  assigned_officer_id uuid references public.officers(id) on delete set null,
   priority text check (priority in ('normal','urgent','critical')),
   status text not null default 'unassigned' check (status in ('unassigned','assigned','acknowledged','in_progress','resolved','escalated','closed','reopened')),
+  internal_notes text,
   resolution_note text,
+  resolution_details text,
   expected_resolution_at timestamp with time zone,
   resolved_at timestamp with time zone,
   reopened_at timestamp with time zone,
+  closed_at timestamp with time zone,
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
 );

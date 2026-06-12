@@ -212,6 +212,8 @@ export default function TrackComplaintScreen() {
                     ? "Resolved"
                     : item.status === "closed"
                       ? "Closed"
+                      : item.status === "acknowledged"
+                        ? "Accepted"
                       : item.status === "in_progress"
                         ? "In Progress"
                         : item.status === "assigned"
@@ -221,7 +223,8 @@ export default function TrackComplaintScreen() {
                 tone={
                   item.status === "resolved" || item.status === "closed"
                     ? "resolved"
-                    : item.status === "in_progress"
+                    : item.status === "in_progress" ||
+                        item.status === "acknowledged"
                       ? "progress"
                       : "open"
                 }
