@@ -13,6 +13,25 @@ function registerAuthRoutes(app, db, { DEV_OTP_ECHO }) {
       .sort({ full_name: 1, created_at: -1 })
       .toArray();
 
+    const creatorIds = [
+      ...new Set(
+        voters
+          .map(voter => String(voter.created_by_user_id || voter.created_by || ""))
+          .filter(Boolean),
+      ),
+    ];
+    const creatorObjectIds = creatorIds.filter(ObjectId.isValid).map(id => new ObjectId(id));
+    const creators = creatorObjectIds.length
+      ? await db
+          .collection("profiles")
+          .find({ _id: { $in: creatorObjectIds } })
+          .project({ role: 1 })
+          .toArray()
+      : [];
+    const creatorRoleById = new Map(
+      creators.map(profile => [profile._id.toString(), profile.role ?? null]),
+    );
+
     return res.json(
       voters.map(voter => ({
         id: voter._id.toString(),
@@ -24,6 +43,12 @@ function registerAuthRoutes(app, db, { DEV_OTP_ECHO }) {
         voter_id: voter.voter_id ?? null,
         mobile: voter.mobile ?? null,
         booth_number: voter.booth_number ?? null,
+        created_by_role:
+          voter.created_by_role ??
+          creatorRoleById.get(
+            String(voter.created_by_user_id || voter.created_by || ""),
+          ) ??
+          null,
       })),
     );
   });

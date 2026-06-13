@@ -245,6 +245,7 @@ export default function ComplaintManagementScreen() {
   const [internalNotes, setInternalNotes] = useState("");
   const [resolutionDetails, setResolutionDetails] = useState("");
   const [showCitizenDropdown, setShowCitizenDropdown] = useState(false);
+  const [citizenSearchQuery, setCitizenSearchQuery] = useState("");
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showSubCategoryDropdown, setShowSubCategoryDropdown] = useState(false);
   const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
@@ -258,6 +259,34 @@ export default function ComplaintManagementScreen() {
     () => new Map(departments.map(item => [item.id, item])),
     [departments],
   );
+
+  const operatorCitizenDirectory = useMemo(
+    () =>
+      citizenDirectory.filter(
+        item => item.created_by_role === "operator" && !!item.profile_id,
+      ),
+    [citizenDirectory],
+  );
+
+  const filteredCitizenDirectory = useMemo(() => {
+    const query = citizenSearchQuery.trim().toLowerCase();
+    if (!query) {
+      return operatorCitizenDirectory;
+    }
+
+    return operatorCitizenDirectory.filter(item => {
+      const haystack = [
+        item.full_name,
+        item.voter_id,
+        item.mobile,
+        item.booth_number,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [citizenSearchQuery, operatorCitizenDirectory]);
 
   const categoryOptions = useMemo(() => {
     const options: string[] = [...COMPLAINT_CATEGORIES.map(item => item.label)];
@@ -603,7 +632,13 @@ export default function ComplaintManagementScreen() {
               if (!canEditComplaintDetails) {
                 return;
               }
-              setShowCitizenDropdown(prev => !prev);
+              setShowCitizenDropdown(prev => {
+                const next = !prev;
+                if (!next) {
+                  setCitizenSearchQuery("");
+                }
+                return next;
+              });
             }}
             disabled={!canEditComplaintDetails}
           >
@@ -614,32 +649,52 @@ export default function ComplaintManagementScreen() {
           </TouchableOpacity>
           {showCitizenDropdown ? (
             <View style={styles.dropdownMenu}>
+              <View style={styles.dropdownSearchWrap}>
+                <MaterialIcons name="search" size={18} color="#757682" />
+                <TextInput
+                  style={styles.dropdownSearch}
+                  value={citizenSearchQuery}
+                  onChangeText={setCitizenSearchQuery}
+                  placeholder="Search operator-created citizens"
+                  placeholderTextColor="#757682"
+                />
+              </View>
               <TouchableOpacity
                 style={styles.dropdownItem}
                 onPress={() => {
                   setSelectedCitizenProfileId(null);
                   setShowCitizenDropdown(false);
+                  setCitizenSearchQuery("");
                 }}
               >
                 <Text style={styles.dropdownItemText}>Use manual citizen details</Text>
               </TouchableOpacity>
-              {citizenDirectory.map(item => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setSelectedCitizenProfileId(item.profile_id);
-                    setShowCitizenDropdown(false);
-                  }}
-                >
-                  <Text style={styles.dropdownItemText}>
-                    {item.full_name ?? "Citizen"}
+              {filteredCitizenDirectory.length ? (
+                filteredCitizenDirectory.map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setSelectedCitizenProfileId(item.profile_id);
+                      setShowCitizenDropdown(false);
+                      setCitizenSearchQuery("");
+                    }}
+                  >
+                    <Text style={styles.dropdownItemText}>
+                      {item.full_name ?? "Citizen"}
+                    </Text>
+                    <Text style={styles.dropdownItemSub}>
+                      {item.voter_id ?? item.mobile ?? "No ID"}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.dropdownEmpty}>
+                  <Text style={styles.dropdownEmptyText}>
+                    No operator-created citizens found.
                   </Text>
-                  <Text style={styles.dropdownItemSub}>
-                    {item.voter_id ?? item.mobile ?? "No ID"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                </View>
+              )}
             </View>
           ) : null}
 
@@ -998,6 +1053,21 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
+  },
+  dropdownSearchWrap: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF0F6",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  dropdownSearch: {
+    flex: 1,
+    color: "#121C28",
+    fontSize: 13,
+    paddingVertical: 0,
   },
   dropdownItem: {
     paddingHorizontal: 12,

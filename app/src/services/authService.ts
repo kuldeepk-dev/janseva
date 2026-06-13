@@ -18,6 +18,7 @@ export type CitizenDirectoryItem = {
   voter_id: string | null;
   mobile: string | null;
   booth_number: string | null;
+  created_by_role: "citizen" | "operator" | "leader" | "admin" | null;
 };
 
 function normalizePhone(mobile: string) {
