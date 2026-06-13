@@ -93,6 +93,34 @@ function defaultTimelineNote(status, actorRole) {
   }
 }
 
+function buildOperatorNoteUpdate(currentNote, note) {
+  if (note === undefined) {
+    return null;
+  }
+
+  const normalizedNextNote = note || null;
+  if (valuesEqual(currentNote, normalizedNextNote)) {
+    return null;
+  }
+
+  return {
+    operator_note: normalizedNextNote,
+    operator_note_updated_at: new Date().toISOString(),
+  };
+}
+
+function normalizeComparable(value) {
+  return value === undefined ? undefined : value ?? null;
+}
+
+function valuesEqual(left, right) {
+  return normalizeComparable(left) === normalizeComparable(right);
+}
+
+function hasAnyChange(current, next, fields) {
+  return fields.some(field => !valuesEqual(current[field], next[field]));
+}
+
 async function createComplaintNotifications(db, complaint, title, body) {
   if (!complaint || !complaint.citizen_profile_id) {
     return;
@@ -137,6 +165,12 @@ function registerComplaintRoutes(app, db) {
     const update = buildComplaintUpdate("escalated", complaint.resolution_note, complaint.resolution_details);
     if (internalNotes !== undefined) {
       update.internal_notes = internalNotes || null;
+    }
+    if (note !== undefined) {
+      const noteUpdate = buildOperatorNoteUpdate(complaint.operator_note, note);
+      if (noteUpdate) {
+        Object.assign(update, noteUpdate);
+      }
     }
 
     await db.collection("complaints").updateOne(
@@ -213,6 +247,8 @@ function registerComplaintRoutes(app, db) {
       priority: payload.priority ?? "normal",
       status: payload.status && VALID_STATUSES.has(payload.status) ? payload.status : "unassigned",
       internal_notes: payload.internal_notes ?? null,
+      operator_note: payload.operator_note ?? null,
+      operator_note_updated_at: payload.operator_note ? now : null,
       resolution_details: payload.resolution_details ?? null,
       resolution_note: payload.resolution_note ?? null,
       expected_resolution_at: payload.expected_resolution_at ?? null,
@@ -354,6 +390,25 @@ function registerComplaintRoutes(app, db) {
       updates.internal_notes = internalNotes || null;
     }
 
+    const noteUpdate = note !== undefined ? buildOperatorNoteUpdate(complaint.operator_note, note) : null;
+    if (noteUpdate) {
+      Object.assign(updates, noteUpdate);
+    }
+
+    const hasChanges = hasAnyChange(complaint, updates, [
+      "assigned_department_id",
+      "priority",
+      "expected_resolution_at",
+      "status",
+      "internal_notes",
+      "operator_note",
+      "operator_note_updated_at",
+    ]);
+
+    if (!hasChanges) {
+      return res.json(toComplaintResponse(complaint));
+    }
+
     await db.collection("complaints").updateOne(
       { _id: new ObjectId(id) },
       { $set: updates },
@@ -404,6 +459,11 @@ function registerComplaintRoutes(app, db) {
     const complaint = await loadComplaint(db, id);
     if (!complaint) {
       return res.status(404).send("Complaint not found");
+    }
+    if (complaint.source === "citizen") {
+      return res
+        .status(403)
+        .send("Citizen-submitted complaint details cannot be edited by operators.");
     }
 
     const {
@@ -457,8 +517,19 @@ function registerComplaintRoutes(app, db) {
       updates.created_on_behalf_of_citizen_id =
         complaint.source === "operator" ? nextCitizenId : complaint.created_on_behalf_of_citizen_id ?? null;
     }
+    if (note !== undefined) {
+      const noteUpdate = buildOperatorNoteUpdate(complaint.operator_note, note);
+      if (noteUpdate) {
+        Object.assign(updates, noteUpdate);
+      }
+    }
 
     const changedKeys = Object.keys(updates).filter(key => key !== "updated_at");
+    const hasChanges = hasAnyChange(complaint, updates, changedKeys);
+    if (!hasChanges) {
+      return res.json(toComplaintResponse(complaint));
+    }
+
     if (!changedKeys.length) {
       return res.status(400).send("No complaint details provided.");
     }
@@ -528,6 +599,24 @@ function registerComplaintRoutes(app, db) {
     if (resolutionDetails !== undefined) {
       update.resolution_details = resolutionDetails || null;
     }
+    if (note !== undefined) {
+      const noteUpdate = buildOperatorNoteUpdate(existing.operator_note, note);
+      if (noteUpdate) {
+        Object.assign(update, noteUpdate);
+      }
+    }
+
+    const hasChanges = hasAnyChange(existing, update, [
+      "status",
+      "resolution_note",
+      "resolution_details",
+      "internal_notes",
+      "operator_note",
+      "operator_note_updated_at",
+    ]);
+    if (!hasChanges) {
+      return res.json(toComplaintResponse(existing));
+    }
 
     await db.collection("complaints").updateOne(
       { _id: new ObjectId(id) },
@@ -567,7 +656,7 @@ function registerComplaintRoutes(app, db) {
     return res.json(toComplaintResponse(updated));
   });
 
-  app.post("/complaints/:id/feedback", requireAuth, async (req, res) => {
+  async function handleComplaintFeedback(req, res) {
     const { id } = req.params;
     const { satisfied, note } = req.body || {};
     if (typeof satisfied !== "boolean") {
@@ -581,8 +670,16 @@ function registerComplaintRoutes(app, db) {
     if (req.user.role === "citizen" && !canCitizenAccessComplaint(complaint, req.user.id)) {
       return res.status(403).send("Not allowed to update this complaint.");
     }
+    if (complaint.status !== "resolved" || !complaint.resolved_at) {
+      return res
+        .status(400)
+        .send("Citizen can only confirm or request reopening after the complaint is resolved.");
+    }
 
     const nextStatus = satisfied ? "closed" : "reopened";
+    if (complaint.status === nextStatus) {
+      return res.json(toComplaintResponse(complaint));
+    }
     const update = buildComplaintUpdate(nextStatus, complaint.resolution_note, complaint.resolution_details);
 
     await db.collection("complaints").updateOne(
@@ -611,7 +708,10 @@ function registerComplaintRoutes(app, db) {
     );
 
     return res.json(toComplaintResponse(updated));
-  });
+  }
+
+  app.post("/complaints/:id/citizen-feedback", requireAuth, handleComplaintFeedback);
+  app.post("/complaints/:id/feedback", requireAuth, handleComplaintFeedback);
 
   app.post("/complaints/:id/reopen", requireAuth, async (req, res) => {
     const { id } = req.params;
@@ -627,6 +727,10 @@ function registerComplaintRoutes(app, db) {
     reopenWindow.setDate(reopenWindow.getDate() + 7);
     if (new Date() > reopenWindow) {
       return res.status(400).send("Reopen window expired. Contact support.");
+    }
+
+    if (complaint.status === "reopened") {
+      return res.json(toComplaintResponse(complaint));
     }
 
     await db.collection("complaints").updateOne(

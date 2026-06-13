@@ -6,8 +6,6 @@ import { getMyComplaints } from "../../services/complaintService";
 import { getMyVoter } from "../../services/voterService";
 import {
   Alert,
-  Image,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,81 +14,103 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+type ComplaintSummary = {
+  id: string;
+  complaint_number: string | null;
+  category: string | null;
+  status: string | null;
+  created_at: string;
+  updated_at: string;
+  operator_note: string | null;
+};
+
+function countStatus(list: ComplaintSummary[]) {
+  const counts = { open: 0, resolved: 0, pending: 0 };
+  for (const item of list) {
+    const status = item.status;
+    if (status === "resolved" || status === "closed") {
+      counts.resolved += 1;
+    } else if (status === "unassigned" || status === "assigned") {
+      counts.pending += 1;
+    } else {
+      counts.open += 1;
+    }
+  }
+  return counts;
+}
+
 export default function CitizenDashboardScreen() {
   const router = useRouter();
-  const [aiOpen, setAiOpen] = useState(false);
   const [voterName, setVoterName] = useState<string | null>(null);
   const [hasVoterProfile, setHasVoterProfile] = useState(false);
-  const [stats, setStats] = useState({ open: 0, resolved: 0, pending: 0 });
+  const [complaints, setComplaints] = useState<ComplaintSummary[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     let isActive = true;
+
     const load = async () => {
+      setError(null);
       if (apiConfigError) {
+        setError(apiConfigError);
         return;
       }
+
+      setIsLoading(true);
       try {
-        const [voter, complaints] = await Promise.all([
+        const [voter, complaintData] = await Promise.all([
           getMyVoter(),
           getMyComplaints(),
         ]);
+
         if (!isActive) {
           return;
         }
 
-        const fullName = voter?.full_name?.trim() || null;
-        setVoterName(fullName);
+        setVoterName(voter?.full_name?.trim() || null);
         setHasVoterProfile(!!voter);
-
-        const pendingStatuses = new Set(["unassigned", "assigned"]);
-        const openStatuses = new Set([
-          "acknowledged",
-          "in_progress",
-          "reopened",
-          "escalated",
-        ]);
-        let pending = 0;
-        let open = 0;
-        let resolved = 0;
-
-        complaints.forEach(item => {
-          const status = item.status;
-          if (!status) {
-            pending += 1;
-            return;
-          }
-          if (status === "resolved" || status === "closed") {
-            resolved += 1;
-          } else if (pendingStatuses.has(status)) {
-            pending += 1;
-          } else if (openStatuses.has(status)) {
-            open += 1;
-          } else {
-            open += 1;
-          }
-        });
-
-        setStats({ open, resolved, pending });
-      } catch {
+        setComplaints(
+          complaintData.map(item => ({
+            id: item.id,
+            complaint_number: item.complaint_number,
+            category: item.category,
+            status: item.status,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+            operator_note: item.operator_note,
+          })),
+        );
+      } catch (err) {
         if (!isActive) {
           return;
         }
+        setError(err instanceof Error ? err.message : "Failed to load dashboard.");
+        setComplaints([]);
         setVoterName(null);
         setHasVoterProfile(false);
-        setStats({ open: 0, resolved: 0, pending: 0 });
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
       }
     };
 
     void load();
-
     return () => {
       isActive = false;
     };
   }, []);
 
+  const summary = useMemo(() => countStatus(complaints), [complaints]);
+  const recentComplaints = useMemo(
+    () => [...complaints].sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at)).slice(0, 4),
+    [complaints],
+  );
+
   const welcomeText = useMemo(() => {
     if (!voterName) {
-      return "";
+      return "Welcome back";
     }
     return `Namaste, ${voterName}`;
   }, [voterName]);
@@ -99,15 +119,13 @@ export default function CitizenDashboardScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.logoWrap}>
-            <Image
-              source={{
-                uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuBDfoqKvJefZCMQ4yXasM7rKchn6zE2oNQf0xkFiM8jkX-MXNln83ALmYponYJtiwBcwVpOO1o0bZUh-Up-SH-0Pe8dqWHrXCUf_YGCGizNllt1aU9IORbWI-mzQlmIknVlf7_MNqGem1d2l6WFYcYuIq1z_Fi64TXzwrkaWuFtjsAzUeFJJ85gGJc6Og5l4JUOcu8ek15H5WxdBdo0GsjXSSIpRA2G7RAxpmn2kv8-3jUaFH6rRIh1C40NTevAx4kAVJFW1fVz_aU",
-              }}
-              style={styles.logo}
-            />
+          <View style={styles.logoMark}>
+            <MaterialIcons name="apartment" size={18} color="#FFFFFF" />
           </View>
-          <Text style={styles.brand}>जन सेवा</Text>
+          <View>
+            <Text style={styles.brand}>Jan Seva</Text>
+            <Text style={styles.brandSub}>Citizen Dashboard</Text>
+          </View>
         </View>
         <TouchableOpacity
           style={styles.langBtn}
@@ -123,279 +141,138 @@ export default function CitizenDashboardScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.welcomeSection}>
-          <View>
-            {welcomeText ? (
-              <Text style={styles.welcomeText}>{welcomeText}</Text>
-            ) : null}
-            <Text style={styles.title}>Your Dashboard</Text>
+        <View style={styles.heroCard}>
+          <View style={styles.heroText}>
+            <Text style={styles.heroKicker}>{welcomeText}</Text>
+            <Text style={styles.heroTitle}>Track every complaint in one place.</Text>
+            <Text style={styles.heroSub}>
+              See live status, operator notes, and the latest updates from the
+              complaint desk.
+            </Text>
           </View>
-          <View style={styles.wardBadge}>
-            <MaterialIcons name="location-on" size={16} color="#444651" />
-            <Text style={styles.wardText}>Ward 12</Text>
-          </View>
-        </View>
-
-        <View style={styles.bentoGrid}>
-          <View style={styles.statCard}>
-            <View style={styles.statTopRow}>
-              <View
-                style={[styles.statIconWrap, { backgroundColor: "#FFDAD6" }]}
-              >
-                <MaterialIcons name="error" size={22} color="#93000A" />
-              </View>
-              <Text style={styles.statNumber}>
-                {String(stats.open).padStart(2, "0")}
-              </Text>
-            </View>
-            <Text style={styles.statLabel}>Open</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <View style={styles.statTopRow}>
-              <View
-                style={[styles.statIconWrap, { backgroundColor: "#6CF8BB" }]}
-              >
-                <MaterialIcons name="check-circle" size={22} color="#00714D" />
-              </View>
-              <Text style={styles.statNumber}>
-                {String(stats.resolved).padStart(2, "0")}
-              </Text>
-            </View>
-            <Text style={styles.statLabel}>Resolved</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <View style={styles.statTopRow}>
-              <View
-                style={[styles.statIconWrap, { backgroundColor: "#DFE9FA" }]}
-              >
-                <MaterialIcons
-                  name="pending-actions"
-                  size={22}
-                  color="#757682"
-                />
-              </View>
-              <Text style={styles.statNumber}>
-                {String(stats.pending).padStart(2, "0")}
-              </Text>
-            </View>
-            <Text style={styles.statLabel}>Pending</Text>
+          <View style={styles.heroBadge}>
+            <MaterialIcons name="assignment" size={18} color="#00236F" />
+            <Text style={styles.heroBadgeText}>
+              {isLoading ? "Loading" : `${complaints.length} complaints`}
+            </Text>
           </View>
         </View>
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         {!hasVoterProfile ? (
-          <View style={styles.primaryHub}>
-            <Text style={styles.primaryHubTitle}>
-              Important for New Citizens
-            </Text>
+          <View style={styles.noticeCard}>
+            <MaterialIcons name="warning-amber" size={20} color="#7A4C00" />
+            <View style={styles.noticeBody}>
+              <Text style={styles.noticeTitle}>Complete your voter profile</Text>
+              <Text style={styles.noticeText}>
+                Registering your profile helps the system link complaints to your
+                record and improve support.
+              </Text>
+            </View>
             <TouchableOpacity
-              style={styles.registerBtn}
+              style={styles.noticeBtn}
               onPress={() => router.push("/register" as never)}
             >
-              <View style={styles.registerLeft}>
-                <MaterialIcons name="how-to-reg" size={28} color="#FFFFFF" />
-                <View>
-                  <Text style={styles.registerTitle}>
-                    Register Voter Profile
-                  </Text>
-                  <Text style={styles.registerSubtitle}>
-                    Mandatory for local body elections
-                  </Text>
-                </View>
-              </View>
-              <MaterialIcons name="arrow-forward" size={22} color="#FFFFFF" />
+              <Text style={styles.noticeBtnText}>Register</Text>
             </TouchableOpacity>
           </View>
         ) : null}
 
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <MaterialIcons name="error-outline" size={22} color="#93000A" />
+            <Text style={styles.statValue}>{String(summary.open).padStart(2, "0")}</Text>
+            <Text style={styles.statLabel}>Open</Text>
+          </View>
+          <View style={styles.statCard}>
+            <MaterialIcons name="pending-actions" size={22} color="#1D4ED8" />
+            <Text style={styles.statValue}>{String(summary.pending).padStart(2, "0")}</Text>
+            <Text style={styles.statLabel}>Pending</Text>
+          </View>
+          <View style={styles.statCard}>
+            <MaterialIcons name="check-circle-outline" size={22} color="#00714D" />
+            <Text style={styles.statValue}>{String(summary.resolved).padStart(2, "0")}</Text>
+            <Text style={styles.statLabel}>Resolved</Text>
+          </View>
+        </View>
+
         <View style={styles.actionGrid}>
           <TouchableOpacity
-            style={styles.actionBtn}
+            style={styles.actionCard}
             onPress={() => router.push("/complaints/new" as never)}
           >
-            <MaterialIcons name="add-box" size={22} color="#00236F" />
-            <Text style={styles.actionText}>New Complaint</Text>
+            <MaterialIcons name="add-circle" size={22} color="#00236F" />
+            <Text style={styles.actionTitle}>New Complaint</Text>
+            <Text style={styles.actionSub}>File a fresh complaint</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.actionBtn}
+            style={styles.actionCard}
             onPress={() => router.push("/complaints" as never)}
           >
             <MaterialIcons name="track-changes" size={22} color="#00236F" />
-            <Text style={styles.actionText}>Track Status</Text>
+            <Text style={styles.actionTitle}>Track Status</Text>
+            <Text style={styles.actionSub}>Open your complaint timeline</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.feedHeader}>
-          <Text style={styles.feedTitle}>Social Work Feed</Text>
-          <TouchableOpacity onPress={() => router.push("/feed" as never)}>
-            <Text style={styles.viewAll}>View All</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recent Complaints</Text>
+          <TouchableOpacity onPress={() => router.push("/complaints" as never)}>
+            <Text style={styles.sectionLink}>View all</Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.feedRow}
-        >
-          <View style={styles.feedCard}>
-            <View style={styles.feedImageWrap}>
-              <Image
-                source={{
-                  uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuCj_taAhu8r7b5EeqEpEI1lBxr_BE7jzjkSYSuxLZzJeNKfFHe1IFlXv_NwLDxZiIzZV4QfYxHpDwbnnLzoEFtRsWYRjUeEQCfJB5gr78qFhXGkUF1UnmOo38gF1OPqiWGkUoPzJehlT3j39pZCdrmRMD3AaDiXprCg8T85EzZnsHmJ0TObMot_Y60shsibKc56SO2aNrD43jqUcKQpamHQcCnXKEFqotoQKBExmfaUOp1ls2iknOViRbi9GpOiub0ebS8XpcNxzBA",
-                }}
-                style={styles.feedImage}
-              />
-              <View style={styles.feedTag}>
-                <Text style={styles.feedTagText}>Infrastructure</Text>
-              </View>
-            </View>
-            <View style={styles.feedBody}>
-              <Text style={styles.feedCardTitle}>
-                Ward 12 Road Repair Completion
-              </Text>
-              <Text style={styles.feedCardDesc}>
-                The main artery road for Ward 12 has been successfully
-                resurfaced, benefiting over 500 households...
-              </Text>
-              <View style={styles.feedFoot}>
-                <View style={styles.avatarDots}>
-                  <View
-                    style={[styles.avatarDot, { backgroundColor: "#E2E8F0" }]}
-                  />
-                  <View
-                    style={[
-                      styles.avatarDot,
-                      { backgroundColor: "#CBD5E1", marginLeft: -8 },
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.avatarDot,
-                      { backgroundColor: "#94A3B8", marginLeft: -8 },
-                    ]}
-                  />
+        <View style={styles.list}>
+          {recentComplaints.length ? (
+            recentComplaints.map(item => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.complaintCard}
+                onPress={() => router.push(`/complaints/${item.id}` as never)}
+              >
+                <View style={styles.cardTop}>
+                  <View style={styles.cardText}>
+                    <Text style={styles.cardId}>
+                      {item.complaint_number ?? item.id}
+                    </Text>
+                    <Text style={styles.cardTitle}>
+                      {item.category ?? "Complaint"}
+                    </Text>
+                  </View>
+                  <View style={styles.statusPill}>
+                    <Text style={styles.statusPillText}>
+                      {(item.status ?? "open").replace(/_/g, " ")}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={styles.feedTime}>2 hours ago</Text>
-              </View>
-            </View>
-          </View>
 
-          <View style={styles.feedCard}>
-            <View style={styles.feedImageWrap}>
-              <Image
-                source={{
-                  uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDdsWkKCdU8Wpgz7XaI4PfLDdWi1wY7OFNNSRFDkA09RiwNk51oJIpW_kMflunJwMNICZ3ddIP3CdkPjjwGyIee5Ufhk0Hx38jh3qJz15WaJsOPG3PBZOQOawkRglmuz_EkRqWV-ROl6KkWixW8IcEi9Ac6CME89OeVG5xYHxL4Xqv2beQUVCtAc2YxcVVPWq2k-1EOpDxHGbczEyLYV_oDVlqefd4dpB4_hk1XaVhCEVK2Zv-MAeT1JhoCMEW-8c8L8pEcAI-PkmI",
-                }}
-                style={styles.feedImage}
-              />
-              <View style={[styles.feedTag, { backgroundColor: "#00236F" }]}>
-                <Text style={styles.feedTagText}>Health</Text>
-              </View>
-            </View>
-            <View style={styles.feedBody}>
-              <Text style={styles.feedCardTitle}>Free Health Camp: Sunday</Text>
-              <Text style={styles.feedCardDesc}>
-                Join us this Sunday at the Community Center for a free general
-                checkup and vaccination drive...
+                {item.operator_note ? (
+                  <Text style={styles.notePreview} numberOfLines={2}>
+                    Latest operator note: {item.operator_note}
+                  </Text>
+                ) : (
+                  <Text style={styles.notePreview} numberOfLines={2}>
+                    No operator note yet.
+                  </Text>
+                )}
+
+                <Text style={styles.cardMeta}>
+                  Updated {new Date(item.updated_at).toLocaleDateString("en-GB")}
+                </Text>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyCard}>
+              <MaterialIcons name="inbox" size={24} color="#757682" />
+              <Text style={styles.emptyTitle}>No complaints yet</Text>
+              <Text style={styles.emptyText}>
+                Your filed complaints will appear here once they are created.
               </Text>
-              <View style={styles.feedFoot}>
-                <View style={styles.avatarDots}>
-                  <View
-                    style={[styles.avatarDot, { backgroundColor: "#E2E8F0" }]}
-                  />
-                  <View
-                    style={[
-                      styles.avatarDot,
-                      { backgroundColor: "#CBD5E1", marginLeft: -8 },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.feedTime}>5 hours ago</Text>
-              </View>
             </View>
-          </View>
-        </ScrollView>
-
-        <View style={styles.quickSection}>
-          <Text style={styles.quickTitle}>Quick Links</Text>
-          <View style={styles.quickGrid}>
-            <View style={styles.quickItem}>
-              <View style={styles.quickIconWrap}>
-                <MaterialIcons name="water-drop" size={20} color="#00236F" />
-              </View>
-              <Text style={styles.quickLabel}>Water</Text>
-            </View>
-            <View style={styles.quickItem}>
-              <View style={styles.quickIconWrap}>
-                <MaterialIcons name="lightbulb" size={20} color="#00236F" />
-              </View>
-              <Text style={styles.quickLabel}>Electricity</Text>
-            </View>
-            <View style={styles.quickItem}>
-              <View style={styles.quickIconWrap}>
-                <MaterialIcons name="delete" size={20} color="#00236F" />
-              </View>
-              <Text style={styles.quickLabel}>Waste</Text>
-            </View>
-            <View style={styles.quickItem}>
-              <View style={styles.quickIconWrap}>
-                <MaterialIcons name="description" size={20} color="#00236F" />
-              </View>
-              <Text style={styles.quickLabel}>Education</Text>
-            </View>
-          </View>
+          )}
         </View>
       </ScrollView>
-
-      <Modal
-        transparent
-        visible={aiOpen}
-        animationType="slide"
-        onRequestClose={() => setAiOpen(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>AI Help</Text>
-            <TouchableOpacity
-              style={styles.modalItem}
-              onPress={() =>
-                Alert.alert(
-                  "How to register?",
-                  "Use the Register button on the dashboard to start.",
-                )
-              }
-            >
-              <Text style={styles.modalItemText}>How to register?</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalItem}
-              onPress={() => {
-                setAiOpen(false);
-                router.push("/complaints" as never);
-              }}
-            >
-              <Text style={styles.modalItemText}>Track complaint</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalItem}
-              onPress={() => {
-                setAiOpen(false);
-                router.push("/complaints/new" as never);
-              }}
-            >
-              <Text style={styles.modalItemText}>Submit complaint</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalClose}
-              onPress={() => setAiOpen(false)}
-            >
-              <Text style={styles.modalCloseText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -403,7 +280,7 @@ export default function CitizenDashboardScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#F8F9FF" },
   header: {
-    height: 56,
+    height: 60,
     paddingHorizontal: 16,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
@@ -412,228 +289,138 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  logoWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: "#1E3A8A",
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  logoMark: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#00236F",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  logo: { width: "100%", height: "100%" },
-  brand: { fontSize: 24, lineHeight: 30, color: "#00236F", fontWeight: "700" },
+  brand: { color: "#00236F", fontSize: 18, fontWeight: "700" },
+  brandSub: { color: "#5A6272", fontSize: 11 },
   langBtn: {
     borderWidth: 1,
     borderColor: "#757682",
-    borderRadius: 99,
+    borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  langText: { fontSize: 14, color: "#00236F", fontWeight: "600" },
-  content: { paddingTop: 20, paddingHorizontal: 16, paddingBottom: 120 },
-  welcomeSection: {
-    marginBottom: 24,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-  },
-  welcomeText: {
-    fontSize: 14,
-    color: "#444651",
-    marginBottom: 4,
-    fontWeight: "600",
-  },
-  title: { fontSize: 28, lineHeight: 36, color: "#00236F", fontWeight: "700" },
-  wardBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#DFE9FA",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  wardText: { fontSize: 12, color: "#444651", fontWeight: "600" },
-  bentoGrid: { gap: 12, marginBottom: 24 },
-  statCard: {
-    height: 128,
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    justifyContent: "space-between",
-  },
-  statTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  statIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statNumber: { fontSize: 24, color: "#00236F", fontWeight: "700" },
-  statLabel: { fontSize: 14, color: "#444651", fontWeight: "600" },
-  primaryHub: {
-    marginBottom: 16,
-    backgroundColor: "#EEF4FF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#D6E4FF",
-    padding: 16,
-  },
-  primaryHubTitle: {
-    fontSize: 12,
-    color: "#00236F",
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 12,
-  },
-  registerBtn: {
-    height: 64,
-    borderRadius: 12,
+  langText: { color: "#00236F", fontSize: 13, fontWeight: "600" },
+  content: { padding: 16, paddingBottom: 120, gap: 14 },
+  heroCard: {
     backgroundColor: "#00236F",
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    shadowColor: "#00236F",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    borderRadius: 20,
+    padding: 18,
+    gap: 16,
   },
-  registerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  registerTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
-  registerSubtitle: { color: "#D6E3FF", fontSize: 10, marginTop: 2 },
-  actionGrid: { flexDirection: "row", gap: 12, marginBottom: 24 },
-  actionBtn: {
-    flex: 1,
-    height: 64,
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 12,
+  heroText: { gap: 8 },
+  heroKicker: { color: "#D6E3FF", fontSize: 13, fontWeight: "600" },
+  heroTitle: { color: "#FFFFFF", fontSize: 28, lineHeight: 34, fontWeight: "700" },
+  heroSub: { color: "#D6E3FF", fontSize: 14, lineHeight: 20 },
+  heroBadge: {
+    alignSelf: "flex-start",
     backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-  },
-  actionText: { fontSize: 12, color: "#00236F", fontWeight: "600" },
-  feedHeader: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    gap: 6,
   },
-  feedTitle: { fontSize: 20, color: "#00236F", fontWeight: "700" },
-  viewAll: { fontSize: 14, color: "#006C49", fontWeight: "600" },
-  feedRow: { paddingBottom: 8 },
-  feedCard: {
-    width: 280,
-    marginRight: 12,
+  heroBadgeText: { color: "#00236F", fontSize: 12, fontWeight: "700" },
+  errorText: { color: "#BA1A1A", fontSize: 12 },
+  noticeCard: {
+    backgroundColor: "#FFF8E8",
     borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    overflow: "hidden",
-  },
-  feedImageWrap: { height: 128, position: "relative" },
-  feedImage: { width: "100%", height: "100%" },
-  feedTag: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "#006C49",
-    borderRadius: 99,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  feedTagText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    textTransform: "uppercase",
-    fontWeight: "700",
-  },
-  feedBody: { padding: 12 },
-  feedCardTitle: {
-    fontSize: 14,
-    color: "#121C28",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  feedCardDesc: { fontSize: 14, lineHeight: 20, color: "#444651" },
-  feedFoot: {
-    marginTop: 10,
+    borderColor: "#F5C26B",
+    borderRadius: 16,
+    padding: 14,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-  },
-  avatarDots: { flexDirection: "row", alignItems: "center" },
-  avatarDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  feedTime: { fontSize: 10, color: "#757682", fontWeight: "600" },
-  quickSection: { marginTop: 24 },
-  quickTitle: {
-    fontSize: 20,
-    color: "#00236F",
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  quickGrid: { flexDirection: "row", justifyContent: "space-between" },
-  quickItem: { alignItems: "center", width: "23%" },
-  quickIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    backgroundColor: "#EEF4FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickLabel: {
-    marginTop: 4,
-    fontSize: 10,
-    color: "#444651",
-    fontWeight: "500",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "#00000055",
-    justifyContent: "flex-end",
-  },
-  modalSheet: {
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
     gap: 10,
   },
-  modalHandle: {
-    alignSelf: "center",
-    width: 42,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "#D9E3F4",
+  noticeBody: { flex: 1, gap: 3 },
+  noticeTitle: { color: "#7A4C00", fontSize: 14, fontWeight: "700" },
+  noticeText: { color: "#7A4C00", fontSize: 12, lineHeight: 18 },
+  noticeBtn: {
+    backgroundColor: "#00236F",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
   },
-  modalTitle: { fontSize: 16, color: "#00236F", fontWeight: "700" },
-  modalItem: {
+  noticeBtnText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  statsGrid: { flexDirection: "row", gap: 10 },
+  statCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#C5C5D3",
-    borderRadius: 10,
-    padding: 12,
-    backgroundColor: "#F8F9FF",
+    borderRadius: 16,
+    padding: 14,
+    gap: 6,
+    alignItems: "flex-start",
   },
-  modalItemText: { color: "#121C28", fontSize: 14, fontWeight: "600" },
-  modalClose: { alignItems: "center", paddingVertical: 10 },
-  modalCloseText: { color: "#00236F", fontSize: 14, fontWeight: "700" },
+  statValue: { color: "#00236F", fontSize: 24, fontWeight: "700" },
+  statLabel: { color: "#5A6272", fontSize: 12, fontWeight: "600" },
+  actionGrid: { flexDirection: "row", gap: 12 },
+  actionCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 18,
+    padding: 14,
+    minHeight: 92,
+    gap: 6,
+  },
+  actionTitle: { color: "#00236F", fontSize: 15, fontWeight: "700" },
+  actionSub: { color: "#5A6272", fontSize: 12, lineHeight: 18 },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  sectionTitle: { color: "#00236F", fontSize: 20, fontWeight: "700" },
+  sectionLink: { color: "#006C49", fontSize: 13, fontWeight: "700" },
+  list: { gap: 12 },
+  complaintCard: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 16,
+    padding: 14,
+    gap: 10,
+  },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  cardText: { flex: 1, gap: 2 },
+  cardId: { color: "#00236F", fontSize: 12, fontWeight: "700" },
+  cardTitle: { color: "#121C28", fontSize: 16, fontWeight: "700" },
+  statusPill: {
+    backgroundColor: "#DFE9FA",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statusPillText: { color: "#00236F", fontSize: 11, fontWeight: "700" },
+  notePreview: { color: "#444651", fontSize: 13, lineHeight: 19 },
+  cardMeta: { color: "#757682", fontSize: 11 },
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 16,
+    padding: 18,
+    alignItems: "center",
+    gap: 6,
+  },
+  emptyTitle: { color: "#121C28", fontSize: 16, fontWeight: "700" },
+  emptyText: { color: "#5A6272", fontSize: 12, textAlign: "center", lineHeight: 18 },
 });

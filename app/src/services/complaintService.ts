@@ -31,6 +31,8 @@ export type Complaint = {
   priority: "normal" | "urgent" | "critical" | null;
   status: ComplaintStatus | null;
   internal_notes: string | null;
+  operator_note: string | null;
+  operator_note_updated_at: string | null;
   resolution_note: string | null;
   resolution_details: string | null;
   expected_resolution_at: string | null;
@@ -166,15 +168,23 @@ export async function reopenComplaint(id: string) {
   });
 }
 
+export async function submitComplaintFeedback(
+  id: string,
+  satisfied: boolean,
+  note?: string,
+) {
+  return apiFetch<Complaint>(`/complaints/${id}/citizen-feedback`, {
+    method: "POST",
+    body: JSON.stringify({ satisfied, note }),
+  });
+}
+
 export async function closeComplaint(
   id: string,
   satisfied: boolean,
   note?: string,
 ) {
-  return apiFetch<Complaint>(`/complaints/${id}/feedback`, {
-    method: "POST",
-    body: JSON.stringify({ satisfied, note }),
-  });
+  return submitComplaintFeedback(id, satisfied, note);
 }
 
 export async function getComplaintTimeline(id: string) {

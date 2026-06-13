@@ -25,19 +25,100 @@ function MetricCard({
   title,
   value,
   color,
+  icon,
+  accentBg,
 }: {
   title: string;
   value: string;
   color: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  accentBg: string;
 }) {
   return (
     <View style={styles.metricCard}>
+      <View style={styles.metricHead}>
+        <View style={[styles.metricIconWrap, { backgroundColor: accentBg }]}>
+          <MaterialIcons name={icon} size={20} color={color} />
+        </View>
+        <View style={styles.metricPulse} />
+      </View>
       <View>
         <Text style={styles.metricLabel}>{title}</Text>
         <Text style={[styles.metricValue, { color }]}>{value}</Text>
       </View>
-      <View style={styles.metricIcon} />
     </View>
+  );
+}
+
+function ActionCard({
+  icon,
+  iconColor,
+  iconBg,
+  title,
+  body,
+  ctaLabel,
+  ctaIcon,
+  onPress,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  iconColor: string;
+  iconBg: string;
+  title: string;
+  body: string;
+  ctaLabel: string;
+  ctaIcon: keyof typeof MaterialIcons.glyphMap;
+  onPress: () => void;
+}) {
+  return (
+    <View style={styles.actionCard}>
+      <View style={styles.actionHead}>
+        <View style={[styles.actionIcon, { backgroundColor: iconBg }]}>
+          <MaterialIcons name={icon} size={24} color={iconColor} />
+        </View>
+        <View style={styles.actionBadge}>
+          <Text style={styles.actionBadgeText}>Core workflow</Text>
+        </View>
+      </View>
+      <Text style={styles.actionTitle}>{title}</Text>
+      <Text style={styles.actionBody}>{body}</Text>
+      <TouchableOpacity style={styles.primaryAction} onPress={onPress}>
+        <Text style={styles.primaryActionText}>{ctaLabel}</Text>
+        <MaterialIcons name={ctaIcon} size={18} color="#FFFFFF" />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function QuickActionTile({
+  icon,
+  label,
+  tone,
+  danger,
+  onPress,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+  tone: { bg: string; fg: string };
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.quickBtn, danger && styles.quickDanger]}
+      onPress={onPress}
+    >
+      <View style={[styles.quickIconWrap, { backgroundColor: tone.bg }]}>
+        <MaterialIcons name={icon} size={18} color={tone.fg} />
+      </View>
+      <Text style={[styles.quickText, danger && styles.quickTextDanger]}>
+        {label}
+      </Text>
+      <MaterialIcons
+        name="chevron-right"
+        size={18}
+        color={danger ? "#BA1A1A" : "#8A8F9B"}
+      />
+    </TouchableOpacity>
   );
 }
 
@@ -141,6 +222,71 @@ export default function OperatorDashboardScreen() {
     await logout();
   };
 
+  const metricCards = [
+    {
+      title: "REGISTERED TODAY",
+      value: String(stats?.registeredToday || 0),
+      color: "#00236F",
+      icon: "assignment-ind" as const,
+      accentBg: "#DFE9FA",
+    },
+    {
+      title: "COMPLAINTS LOGGED",
+      value: String(stats?.complaintsLogged || 0),
+      color: "#006C49",
+      icon: "assignment-turned-in" as const,
+      accentBg: "#DCF8EC",
+    },
+    {
+      title: "WALK-INS SERVED",
+      value: String(stats?.walkInsServed || 0),
+      color: "#121C28",
+      icon: "directions-walk" as const,
+      accentBg: "#E8ECF5",
+    },
+    {
+      title: "PENDING TASKS",
+      value: String(stats?.pendingTasks || 0).padStart(2, "0"),
+      color: "#BA1A1A",
+      icon: "schedule" as const,
+      accentBg: "#FFE5E5",
+    },
+  ];
+
+  const quickActions = [
+    {
+      icon: "assignment" as const,
+      label: "Manage Complaints",
+      tone: { bg: "#DFE9FA", fg: "#00236F" },
+      onPress: () => router.push("/operator/assign" as never),
+    },
+    {
+      icon: "campaign" as const,
+      label: "Create Social Draft",
+      tone: { bg: "#E6F3EC", fg: "#006C49" },
+      onPress: () =>
+        router.push(
+          {
+            pathname: "/leader/post/new",
+            params: { draft: "operator" },
+          } as never,
+        ),
+    },
+    {
+      icon: "list-alt" as const,
+      label: "View Complaints",
+      tone: { bg: "#EEF4FF", fg: "#264191" },
+      onPress: () => router.push("/operator/complaints" as never),
+    },
+    {
+      icon: "logout" as const,
+      label: "Logout",
+      tone: { bg: "#FFDAD6", fg: "#BA1A1A" },
+      danger: true,
+      onPress: handleLogout,
+    },
+  ];
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
@@ -173,7 +319,8 @@ export default function OperatorDashboardScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.alert}>
+        {/* Demo-only duplicate detection section: the warning banner, sample search term, and merge/dismiss actions are hardcoded placeholders until live duplicate lookup is wired in. */}
+        {/* <View style={styles.alert}>
           <MaterialIcons name="warning" size={18} color="#93000A" />
           <View style={{ flex: 1 }}>
             <Text style={styles.alertTitle}>Duplicate Detection Alert</Text>
@@ -198,14 +345,14 @@ export default function OperatorDashboardScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </View> */}
 
         <Text style={styles.title}>Operator Dashboard</Text>
         <Text style={styles.subtitle}>
           Constituent Search & Record Management
         </Text>
 
-        <View style={styles.search}>
+        {/* <View style={styles.search}>
           <MaterialIcons name="person-search" size={18} color="#757682" />
           <TextInput
             style={styles.searchInput}
@@ -213,79 +360,21 @@ export default function OperatorDashboardScreen() {
             placeholderTextColor="#757682"
             defaultValue="Rajesh Kumar"
           />
-        </View>
+        </View> */}
 
-        <View style={styles.actionCard}>
-          <View style={styles.actionHead}>
-            <View style={[styles.actionIcon, { backgroundColor: "#6CF8BB" }]}>
-              <MaterialIcons name="person-add" size={24} color="#00714D" />
-            </View>
-            <Text style={styles.actionTitle}>Register New Voter</Text>
-          </View>
-          <Text style={styles.actionBody}>
-            Initiate official enrollment for new constituents. Requires Aadhaar
-            and Proof of Residence.
-          </Text>
-          <TouchableOpacity
-            style={styles.primaryAction}
-            onPress={() => router.push("/register" as never)}
-          >
-            <Text style={styles.primaryActionText}>New Enrollment</Text>
-            <MaterialIcons name="arrow-forward" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.actionCard}>
-          <View style={styles.actionHead}>
-            <View style={[styles.actionIcon, { backgroundColor: "#DCE1FF" }]}>
-              <MaterialIcons name="edit-note" size={24} color="#264191" />
-            </View>
-            <Text style={styles.actionTitle}>Log Walk-in Complaint</Text>
-          </View>
-          <Text style={styles.actionBody}>
-            Create a grievance ticket for citizens visiting the office. Priority
-            tags available.
-          </Text>
-          <TouchableOpacity
-            style={styles.primaryAction}
-            onPress={() => router.push("/operator/complaints/new" as never)}
-          >
-            <Text style={styles.primaryActionText}>Open Ticket</Text>
-            <MaterialIcons name="support-agent" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+        
 
         <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickBtn}
-            onPress={() => router.push("/operator/assign" as never)}
-          >
-            <MaterialIcons name="assignment" size={18} color="#00236F" />
-            <Text style={styles.quickText}>Manage Complaints</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickBtn}
-            onPress={() =>
-              router.push({
-                pathname: "/leader/post/new",
-                params: { draft: "operator" },
-              } as never)
-            }
-          >
-            <MaterialIcons name="campaign" size={18} color="#00236F" />
-            <Text style={styles.quickText}>Create Social Draft</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickBtn}
-            onPress={() => router.push("/operator/complaints" as never)}
-          >
-            <MaterialIcons name="list-alt" size={18} color="#00236F" />
-            <Text style={styles.quickText}>View Complaints</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickBtn} onPress={handleLogout}>
-            <MaterialIcons name="logout" size={18} color="#BA1A1A" />
-            <Text style={styles.quickText}>Logout</Text>
-          </TouchableOpacity>
+          {quickActions.map(action => (
+            <QuickActionTile
+              key={action.label}
+              icon={action.icon}
+              label={action.label}
+              tone={action.tone}
+              danger={action.danger}
+              onPress={action.onPress}
+            />
+          ))}
         </View>
 
         {loading ? (
@@ -294,29 +383,41 @@ export default function OperatorDashboardScreen() {
           </View>
         ) : (
           <View style={styles.metricsGrid}>
-            <MetricCard
-              title="REGISTERED TODAY"
-              value={String(stats?.registeredToday || 0)}
-              color="#00236F"
-            />
-            <MetricCard
-              title="COMPLAINTS LOGGED"
-              value={String(stats?.complaintsLogged || 0)}
-              color="#006C49"
-            />
-            <MetricCard
-              title="WALK-INS SERVED"
-              value={String(stats?.walkInsServed || 0)}
-              color="#121C28"
-            />
-            <MetricCard
-              title="PENDING TASKS"
-              value={String(stats?.pendingTasks || 0).padStart(2, "0")}
-              color="#BA1A1A"
-            />
+            {metricCards.map(metric => (
+              <MetricCard
+                key={metric.title}
+                title={metric.title}
+                value={metric.value}
+                color={metric.color}
+                icon={metric.icon}
+                accentBg={metric.accentBg}
+              />
+            ))}
           </View>
         )}
+<ActionCard
+          icon="person-add"
+          iconColor="#00714D"
+          iconBg="#6CF8BB"
+          title="Register New Voter"
+          body="Initiate official enrollment for new constituents. Requires Aadhaar and Proof of Residence."
+          ctaLabel="New Enrollment"
+          ctaIcon="arrow-forward"
+          onPress={() => router.push("/register" as never)}
+        />
 
+        <ActionCard
+          icon="edit-note"
+          iconColor="#264191"
+          iconBg="#DCE1FF"
+          title="Log Walk-in Complaint"
+          body="Create a grievance ticket for citizens visiting the office. Priority tags available."
+          ctaLabel="Open Ticket"
+          ctaIcon="support-agent"
+          onPress={() => router.push("/operator/complaints/new" as never)}
+        />
+
+        
         <View style={styles.logWrap}>
           <View style={styles.logHeader}>
             <Text style={styles.logHeaderTitle}>Recent Activity Log</Text>
@@ -427,65 +528,133 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, color: "#121C28", fontSize: 14 },
   actionCard: {
     borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 12,
+    borderColor: "#D7DFEF",
+    borderRadius: 20,
     backgroundColor: "#FFFFFF",
-    padding: 14,
+    padding: 16,
+    gap: 12,
+    shadowColor: "#00236F",
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 3,
+  },
+  actionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 10,
   },
-  actionHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  actionTitle: { fontSize: 20, color: "#121C28", fontWeight: "600", flex: 1 },
-  actionBody: { color: "#444651", fontSize: 13, lineHeight: 18 },
+  actionBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#EEF4FF",
+  },
+  actionBadgeText: {
+    color: "#00236F",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+  },
+  actionTitle: {
+    fontSize: 20,
+    color: "#121C28",
+    fontWeight: "700",
+    lineHeight: 24,
+  },
+  actionBody: { color: "#444651", fontSize: 13, lineHeight: 19 },
   primaryAction: {
-    height: 46,
-    borderRadius: 8,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: "#00236F",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
+    marginTop: 2,
   },
   primaryActionText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
-  metricsGrid: { gap: 10 },
-  quickActions: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  metricsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  quickActions: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   quickBtn: {
-    width: "48.6%",
+    width: "48%",
     borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 12,
+    borderColor: "#D7DFEF",
+    borderRadius: 18,
     backgroundColor: "#FFFFFF",
-    padding: 12,
-    gap: 6,
+    padding: 14,
+    minHeight: 108,
+    justifyContent: "space-between",
+    gap: 8,
+    shadowColor: "#00236F",
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
   },
-  quickText: { color: "#121C28", fontSize: 12, fontWeight: "600" },
+  quickDanger: { backgroundColor: "#FFF7F6", borderColor: "#FFD6D0" },
+  quickIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickText: {
+    color: "#121C28",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 17,
+    flex: 1,
+  },
+  quickTextDanger: { color: "#BA1A1A" },
   metricCard: {
     borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 12,
+    borderColor: "#D7DFEF",
+    borderRadius: 20,
     backgroundColor: "#FFFFFF",
-    padding: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    padding: 14,
+    width: "48%",
+    minHeight: 132,
+    gap: 12,
+    shadowColor: "#00236F",
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 3,
   },
   metricLabel: {
     fontSize: 11,
     color: "#444651",
-    fontWeight: "700",
-    letterSpacing: 0.4,
+    fontWeight: "800",
+    letterSpacing: 0.7,
   },
-  metricValue: { fontSize: 28, fontWeight: "700", marginTop: 2 },
-  metricIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+  metricValue: { fontSize: 32, fontWeight: "700", marginTop: 6, lineHeight: 34 },
+  metricHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  metricIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  metricPulse: {
+    width: 18,
+    height: 8,
+    borderRadius: 999,
     backgroundColor: "#DFE9FA",
   },
   logWrap: {

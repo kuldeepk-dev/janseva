@@ -3,9 +3,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import {
+  closeComplaint,
   getComplaintById,
   getComplaintTimeline,
-  closeComplaint,
   reopenComplaint,
 } from "../../services/complaintService";
 import {
@@ -18,50 +18,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-function TimelineStep({
-  title,
-  subtitle,
-  metaLeft,
-  metaRight,
-  current,
-  first,
-}: {
-  title: string;
-  subtitle: string;
-  metaLeft: string;
-  metaRight: string;
-  current?: boolean;
-  first?: boolean;
-}) {
-  return (
-    <View style={styles.stepWrap}>
-      <View
-        style={[
-          styles.stepDot,
-          current && styles.stepDotCurrent,
-          first && styles.stepDotFirst,
-        ]}
-      >
-        <MaterialIcons
-          name={current ? "person" : first ? "description" : "check"}
-          size={16}
-          color={current ? "#00236F" : first ? "#002113" : "#444651"}
-        />
-      </View>
-      <View style={[styles.stepCard, current && styles.stepCardCurrent]}>
-        <Text style={[styles.stepTag, current && styles.stepTagCurrent]}>
-          {title}
-        </Text>
-        <Text style={styles.stepTitle}>{subtitle}</Text>
-        <View style={styles.stepMeta}>
-          <Text style={styles.stepMetaText}>{metaLeft}</Text>
-          <Text style={styles.stepMetaText}>{metaRight}</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 export default function ComplaintLifecycleScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -73,8 +29,8 @@ export default function ComplaintLifecycleScreen() {
   const [subCategory, setSubCategory] = useState("");
   const [description, setDescription] = useState("");
   const [locationText, setLocationText] = useState("");
-  const [citizenName, setCitizenName] = useState("");
-  const [summary, setSummary] = useState("");
+  const [operatorNote, setOperatorNote] = useState("");
+  const [operatorNoteAt, setOperatorNoteAt] = useState("");
   const [timeline, setTimeline] = useState<
     Array<{
       id: string;
@@ -85,6 +41,7 @@ export default function ComplaintLifecycleScreen() {
   >([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
   const statusLabel = useMemo(
     () =>
       status === "Reopened"
@@ -97,6 +54,7 @@ export default function ComplaintLifecycleScreen() {
 
   useEffect(() => {
     let isActive = true;
+
     const load = async () => {
       if (!id || apiConfigError) {
         if (apiConfigError) {
@@ -104,27 +62,29 @@ export default function ComplaintLifecycleScreen() {
         }
         return;
       }
-      const isUuid = /^[0-9a-f-]{36}$/i.test(id);
-      if (!isUuid) {
-        return;
-      }
+
       setIsLoading(true);
       setError(null);
+
       try {
         const [data, events] = await Promise.all([
           getComplaintById(id),
           getComplaintTimeline(id),
         ]);
+
         if (!isActive || !data) {
           return;
         }
+
         setComplaintNumber(data.complaint_number ?? id);
         setCategory(data.category ?? "");
         setSubCategory(data.sub_category ?? "");
         setDescription(data.description ?? "");
         setLocationText(data.location_text ?? "");
-        setSummary(data.description ?? "Complaint details");
+        setOperatorNote(data.operator_note ?? "");
+        setOperatorNoteAt(data.operator_note_updated_at ?? "");
         setTimeline(events);
+
         if (data.status === "resolved") {
           setStatus("Resolved");
         } else if (data.status === "closed") {
@@ -154,15 +114,18 @@ export default function ComplaintLifecycleScreen() {
   }, [id]);
 
   const handleReopen = async () => {
+    if (status !== "Resolved") {
+      Alert.alert(
+        "Action unavailable",
+        "You can only reopen a complaint after the operator marks it as resolved.",
+      );
+      return;
+    }
     if (!id || apiConfigError) {
       setStatus("Reopened");
       return;
     }
-    const isUuid = /^[0-9a-f-]{36}$/i.test(id);
-    if (!isUuid) {
-      setStatus("Reopened");
-      return;
-    }
+
     setIsLoading(true);
     try {
       await reopenComplaint(id);
@@ -176,15 +139,18 @@ export default function ComplaintLifecycleScreen() {
   };
 
   const handleFeedback = async (satisfied: boolean) => {
+    if (status !== "Resolved") {
+      Alert.alert(
+        "Action unavailable",
+        "You can only confirm or request reopening after the operator marks the complaint as resolved.",
+      );
+      return;
+    }
     if (!id || apiConfigError) {
       setStatus(satisfied ? "Closed" : "Reopened");
       return;
     }
-    const isUuid = /^[0-9a-f-]{36}$/i.test(id);
-    if (!isUuid) {
-      setStatus(satisfied ? "Closed" : "Reopened");
-      return;
-    }
+
     setIsLoading(true);
     try {
       await closeComplaint(
@@ -199,6 +165,26 @@ export default function ComplaintLifecycleScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleNotSatisfiedPress = () => {
+    Alert.alert(
+      "Not satisfied?",
+      "If you proceed, this complaint will be marked for reopening and sent back to the operator for review.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Proceed",
+          style: "destructive",
+          onPress: () => {
+            void handleFeedback(false);
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -235,7 +221,9 @@ export default function ComplaintLifecycleScreen() {
       >
         <Text style={styles.breadcrumb}>Complaints › {complaintNumber || "Loading..."}</Text>
         <Text style={styles.title}>Lifecycle Audit Trail</Text>
-        <Text style={styles.sub}>{category} {subCategory ? `- ${subCategory}` : ""}</Text>
+        <Text style={styles.sub}>
+          {category} {subCategory ? `- ${subCategory}` : ""}
+        </Text>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -281,17 +269,6 @@ export default function ComplaintLifecycleScreen() {
               </Text>
             </TouchableOpacity>
           ) : null}
-          {status === "Resolved" ? null : (
-            <TouchableOpacity
-              style={styles.reopenBtn}
-              onPress={() => handleFeedback(false)}
-            >
-              <MaterialIcons name="close" size={16} color="#00236F" />
-              <Text style={styles.reopenText}>
-                {isLoading ? "Saving..." : "Not satisfied"}
-              </Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity
             style={styles.shareBtn}
             onPress={() =>
@@ -303,93 +280,53 @@ export default function ComplaintLifecycleScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Process Milestones</Text>
-          <View style={styles.progressTrack}>
-            <View style={styles.progressDone} />
+        {status !== "Resolved" ? (
+          <View style={styles.lockedNotice}>
+            <MaterialIcons name="lock" size={16} color="#8A5A00" />
+            <Text style={styles.lockedNoticeText}>
+              Citizen actions are locked until the operator marks this complaint
+              as resolved.
+            </Text>
           </View>
-          <View style={styles.milestones}>
-            {["SUBMITTED", "ROUTED", "ASSIGNED", "IN PROGRESS", "RESOLVED"].map(
-              (m, i) => (
-                <View key={m} style={styles.mileItem}>
-                  <View
-                    style={[
-                      styles.mileDot,
-                      i < 4 && styles.mileDotDone,
-                      i === 3 && styles.mileDotActive,
-                    ]}
-                  />
-                  <Text style={[styles.mileText, i < 4 && styles.mileTextDone]}>
-                    {m}
-                  </Text>
-                </View>
-              ),
-            )}
-          </View>
-        </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.notSatisfiedBtn}
+            onPress={handleNotSatisfiedPress}
+          >
+            <MaterialIcons name="close" size={16} color="#7A4C00" />
+            <Text style={styles.notSatisfiedText}>Not satisfied</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.citizenCard}>
           <Text style={styles.citizenLabel}>Complaint Details</Text>
           <Text style={styles.citizenName}>{category || "Complaint"}</Text>
-          {subCategory && (
+          {subCategory ? (
             <Text style={styles.citizenLoc}>Sub-category: {subCategory}</Text>
-          )}
+          ) : null}
           <View style={styles.citizenRow}>
             <MaterialIcons name="location-on" size={16} color="#FFFFFF" />
-            <Text style={styles.citizenLoc}>{locationText || "Location not specified"}</Text>
+            <Text style={styles.citizenLoc}>
+              {locationText || "Location not specified"}
+            </Text>
           </View>
-          {description && (
-            <Text style={styles.citizenDesc}>{description}</Text>
-          )}
+          {description ? <Text style={styles.citizenDesc}>{description}</Text> : null}
         </View>
 
-        <View style={styles.card}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Step-by-Step Lifecycle Log</Text>
-            <TouchableOpacity
-              style={styles.exportBtn}
-              onPress={() =>
-                Alert.alert("Export", "Export audit trail is a placeholder.")
-              }
-            >
-              <MaterialIcons name="download" size={16} color="#00236F" />
-              <Text style={styles.exportText}>Export Audit</Text>
-            </TouchableOpacity>
+        {operatorNote ? (
+          <View style={styles.operatorNoteCard}>
+            <View style={styles.operatorNoteHeader}>
+              <MaterialIcons name="campaign" size={18} color="#7A4C00" />
+              <Text style={styles.operatorNoteLabel}>Latest Operator Note</Text>
+            </View>
+            <Text style={styles.operatorNoteText}>{operatorNote}</Text>
+            {operatorNoteAt ? (
+              <Text style={styles.operatorNoteMeta}>
+                {new Date(operatorNoteAt).toLocaleString()}
+              </Text>
+            ) : null}
           </View>
-
-          <TimelineStep
-            title="Operator Action • Current Stage"
-            subtitle="Complaint is under active operator review"
-            metaLeft="Operator Desk"
-            metaRight="14 Oct 2025, 10:45 AM"
-            current
-          />
-          <TimelineStep
-            title="Acknowledgement"
-            subtitle="Complaint Acknowledged & SLA Clock Started"
-            metaLeft="Operator: Central Hub"
-            metaRight="13 Oct 2025, 04:30 PM"
-          />
-          <TimelineStep
-            title="Assignment"
-            subtitle="Assigned to the responsible department"
-            metaLeft="Operator Routing"
-            metaRight="13 Oct 2025, 02:15 PM"
-          />
-          <TimelineStep
-            title="Auto-routing"
-            subtitle="Categorized: Infrastructure Maintenance"
-            metaLeft="System Engine"
-            metaRight="13 Oct 2025, 02:12 PM"
-          />
-          <TimelineStep
-            title="Submission"
-            subtitle={description || "Complaint Received via Web Portal"}
-            metaLeft="Citizen Submission"
-            metaRight="Recently"
-            first
-          />
-        </View>
+        ) : null}
 
         <View style={styles.infoGridCard}>
           <Text style={styles.gridTitle}>Complaint Timeline</Text>
@@ -413,33 +350,6 @@ export default function ComplaintLifecycleScreen() {
           ) : (
             <Text style={styles.noteText}>No timeline events yet.</Text>
           )}
-        </View>
-
-        <View style={styles.infoGridCard}>
-          <Text style={styles.gridTitle}>Citizen Attachments</Text>
-          <View style={styles.attachRow}>
-            <View style={styles.imgThumb} />
-            <View style={styles.addThumb}>
-              <MaterialIcons name="add-a-photo" size={18} color="#444651" />
-              <Text style={styles.addThumbText}>Add Image</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.infoGridCard}>
-          <Text style={styles.gridTitle}>Geospatial Context</Text>
-          <View style={styles.mapBox}>
-            <MaterialIcons name="map" size={18} color="#444651" />
-            <Text style={styles.mapText}>Sector 12 Geofence Active</Text>
-          </View>
-        </View>
-
-        <View style={styles.infoGridCard}>
-          <Text style={styles.gridTitle}>Internal Notes</Text>
-          <Text style={styles.noteText}>
-            "Critical route for local ambulance service. High priority flag
-            applied."
-          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -499,6 +409,7 @@ const styles = StyleSheet.create({
     gap: 8,
     alignItems: "center",
     marginTop: 4,
+    flexWrap: "wrap",
   },
   reopenBtn: {
     flexDirection: "row",
@@ -524,54 +435,37 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   shareText: { color: "#00236F", fontSize: 12, fontWeight: "700" },
-  card: {
-    backgroundColor: "#FFFFFF",
+  lockedNotice: {
+    backgroundColor: "#FFF6E5",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 12,
-    padding: 12,
-    gap: 10,
-  },
-  cardLabel: {
-    color: "#444651",
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    fontWeight: "700",
-  },
-  progressTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#D9E3F4",
-    overflow: "hidden",
-  },
-  progressDone: { width: "75%", height: "100%", backgroundColor: "#00236F" },
-  milestones: {
+    borderColor: "#F0D9A7",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
+    gap: 8,
   },
-  mileItem: { width: "19%", alignItems: "center", gap: 4 },
-  mileDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#D9E3F4",
+  lockedNoticeText: {
+    color: "#7A4C00",
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+    lineHeight: 18,
   },
-  mileDotDone: { backgroundColor: "#00236F" },
-  mileDotActive: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#90A8FF",
+  notSatisfiedBtn: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E7C3A1",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
   },
-  mileText: {
-    color: "#757682",
-    fontSize: 8,
-    textAlign: "center",
-    fontWeight: "700",
-  },
-  mileTextDone: { color: "#00236F" },
+  notSatisfiedText: { color: "#7A4C00", fontSize: 12, fontWeight: "700" },
   citizenCard: {
     backgroundColor: "#00236F",
     borderRadius: 12,
@@ -588,72 +482,32 @@ const styles = StyleSheet.create({
   citizenRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   citizenLoc: { color: "#EAF1FF", fontSize: 13 },
   citizenDesc: { color: "#FFFFFF", fontSize: 14, marginTop: 4, lineHeight: 20 },
-  contactBtn: {
-    marginTop: 2,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 10,
-    height: 38,
+  operatorNoteCard: {
+    backgroundColor: "#FFF8E8",
+    borderWidth: 1,
+    borderColor: "#F5C26B",
+    borderRadius: 12,
+    padding: 14,
+    gap: 8,
+  },
+  operatorNoteHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+    gap: 8,
   },
-  contactText: { color: "#00236F", fontSize: 13, fontWeight: "700" },
-  sectionHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  sectionTitle: {
-    color: "#121C28",
-    fontSize: 19,
+  operatorNoteLabel: {
+    color: "#7A4C00",
+    fontSize: 12,
     fontWeight: "700",
-    flex: 1,
-    paddingRight: 8,
+    textTransform: "uppercase",
   },
-  exportBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  exportText: { color: "#00236F", fontSize: 12, fontWeight: "700" },
-  stepWrap: { paddingLeft: 46, position: "relative", marginTop: 2 },
-  stepDot: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#D9E3F4",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepDotCurrent: {
-    backgroundColor: "#DCE1FF",
-    borderWidth: 1,
-    borderColor: "#00236F",
-  },
-  stepDotFirst: { backgroundColor: "#6FFBBE" },
-  stepCard: {
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
-    padding: 10,
-    marginBottom: 10,
-  },
-  stepCardCurrent: {
-    backgroundColor: "#DFE9FA",
-    borderLeftWidth: 4,
-    borderLeftColor: "#00236F",
-  },
-  stepTag: { color: "#444651", fontSize: 12, fontWeight: "700" },
-  stepTagCurrent: { color: "#00236F" },
-  stepTitle: {
-    color: "#121C28",
-    fontSize: 14,
+  operatorNoteText: {
+    color: "#4B2F00",
+    fontSize: 15,
     fontWeight: "600",
-    marginTop: 2,
+    lineHeight: 22,
   },
-  stepMeta: { marginTop: 6, gap: 1 },
-  stepMetaText: { color: "#757682", fontSize: 11 },
+  operatorNoteMeta: { color: "#8A5A00", fontSize: 11 },
   infoGridCard: {
     backgroundColor: "#E5EEFF",
     borderRadius: 12,
@@ -666,37 +520,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     fontWeight: "700",
   },
-  attachRow: { flexDirection: "row", gap: 8 },
-  imgThumb: {
-    width: 76,
-    height: 76,
-    borderRadius: 8,
-    backgroundColor: "#C5C5D3",
-  },
-  addThumb: {
-    flex: 1,
-    height: 76,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: "#757682",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    backgroundColor: "#FFFFFF66",
-  },
-  addThumbText: { color: "#444651", fontSize: 10, fontWeight: "700" },
-  mapBox: {
-    height: 76,
-    borderRadius: 8,
-    backgroundColor: "#D9E3F4",
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-  },
-  mapText: { color: "#444651", fontSize: 12 },
   noteText: {
     color: "#444651",
     fontSize: 13,

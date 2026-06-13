@@ -1,1 +1,3 @@
-export { default } from "./citizen/dashboard";
+import CitizenDashboardScreen from "./citizen/dashboard";
+
+export default CitizenDashboardScreen;

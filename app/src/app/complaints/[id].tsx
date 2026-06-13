@@ -1,1 +1,3 @@
-export { default } from "../citizen/complaint-lifecycle";
+import ComplaintLifecycleScreen from "../citizen/complaint-lifecycle";
+
+export default ComplaintLifecycleScreen;

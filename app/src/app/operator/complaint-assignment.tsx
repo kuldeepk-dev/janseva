@@ -121,6 +121,7 @@ export default function ComplaintManagementScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const canEditComplaintDetails = isCreateMode || complaint?.source === "operator";
 
   const departmentMap = useMemo(
     () => new Map(departments.map(item => [item.id, item])),
@@ -173,6 +174,7 @@ export default function ComplaintManagementScreen() {
           setExpectedResolutionDate(
             normalizeDateInput(complaintData.expected_resolution_at),
           );
+          setRemarks(complaintData.operator_note ?? "");
           setInternalNotes(complaintData.internal_notes ?? "");
           setResolutionDetails(complaintData.resolution_details ?? "");
 
@@ -241,6 +243,7 @@ export default function ComplaintManagementScreen() {
       description: description.trim(),
       location_text: locationText.trim(),
       priority,
+      operator_note: remarks.trim() || undefined,
       internal_notes: internalNotes.trim() || undefined,
     });
 
@@ -285,18 +288,23 @@ export default function ComplaintManagementScreen() {
       return null;
     }
 
-    await updateComplaintDetails(id, {
-      citizenProfileId: selectedCitizenProfileId,
-      reportedCitizenName: citizenName.trim() || undefined,
-      reportedCitizenMobile: citizenMobile.trim() || undefined,
-      category: category.trim() || undefined,
-      subCategory: subCategory.trim() || undefined,
-      description: description.trim() || undefined,
-      locationText: locationText.trim() || undefined,
-      internalNotes: internalNotes.trim() || undefined,
-      resolutionDetails: resolutionDetails.trim() || undefined,
-      note: remarks.trim() || undefined,
-    });
+    const nextOperatorNote = remarks.trim();
+    const hasOperatorNoteChange = nextOperatorNote !== (complaint.operator_note ?? "");
+
+    if (canEditComplaintDetails) {
+      await updateComplaintDetails(id, {
+        citizenProfileId: selectedCitizenProfileId,
+        reportedCitizenName: citizenName.trim() || undefined,
+        reportedCitizenMobile: citizenMobile.trim() || undefined,
+        category: category.trim() || undefined,
+        subCategory: subCategory.trim() || undefined,
+        description: description.trim() || undefined,
+        locationText: locationText.trim() || undefined,
+        internalNotes: internalNotes.trim() || undefined,
+        resolutionDetails: resolutionDetails.trim() || undefined,
+        note: remarks.trim() || undefined,
+      });
+    }
 
     if (departmentId) {
       await assignComplaint(id, {
@@ -313,24 +321,25 @@ export default function ComplaintManagementScreen() {
     if (status === "escalated") {
       return escalateComplaint(
         id,
-        remarks.trim() || undefined,
+        nextOperatorNote || undefined,
         internalNotes.trim() || undefined,
       );
     }
 
     const shouldUpdateStatus =
       status !== complaint.status ||
-      resolutionDetails.trim() !== (complaint.resolution_details ?? "");
+      resolutionDetails.trim() !== (complaint.resolution_details ?? "") ||
+      (!canEditComplaintDetails && hasOperatorNoteChange);
 
     if (shouldUpdateStatus) {
       return updateComplaintStatus(id, {
         status,
-        note: remarks.trim() || undefined,
+        note: nextOperatorNote || undefined,
         internalNotes: internalNotes.trim() || undefined,
         resolutionDetails: resolutionDetails.trim() || undefined,
         resolutionNote:
           status === "resolved" || status === "closed"
-            ? resolutionDetails.trim() || remarks.trim() || undefined
+            ? resolutionDetails.trim() || nextOperatorNote || undefined
             : undefined,
       });
     }
@@ -425,13 +434,21 @@ export default function ComplaintManagementScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Citizen</Text>
           <Text style={styles.sectionSub}>
-            Link an existing citizen or capture walk-in details.
+            {canEditComplaintDetails
+              ? "Link an existing citizen or capture walk-in details."
+              : "Citizen-submitted complaint details are read-only for operators."}
           </Text>
 
           <Text style={styles.label}>Existing Citizen</Text>
           <TouchableOpacity
-            style={styles.select}
-            onPress={() => setShowCitizenDropdown(prev => !prev)}
+            style={[styles.select, !canEditComplaintDetails && styles.selectDisabled]}
+            onPress={() => {
+              if (!canEditComplaintDetails) {
+                return;
+              }
+              setShowCitizenDropdown(prev => !prev);
+            }}
+            disabled={!canEditComplaintDetails}
           >
             <Text style={styles.selectText}>
               {selectedCitizen?.full_name ?? "Use manual citizen details"}
@@ -476,6 +493,7 @@ export default function ComplaintManagementScreen() {
             onChangeText={setCitizenName}
             placeholder="Citizen or walk-in name"
             placeholderTextColor="#757682"
+            editable={canEditComplaintDetails}
           />
 
           <Text style={styles.label}>Citizen Mobile</Text>
@@ -486,6 +504,7 @@ export default function ComplaintManagementScreen() {
             placeholder="Mobile number"
             placeholderTextColor="#757682"
             keyboardType="phone-pad"
+            editable={canEditComplaintDetails}
           />
 
           {linkedCitizen ? (
@@ -505,6 +524,7 @@ export default function ComplaintManagementScreen() {
             onChangeText={setCategory}
             placeholder="Category"
             placeholderTextColor="#757682"
+            editable={canEditComplaintDetails}
           />
 
           <Text style={styles.label}>Sub-category</Text>
@@ -514,6 +534,7 @@ export default function ComplaintManagementScreen() {
             onChangeText={setSubCategory}
             placeholder="Sub-category"
             placeholderTextColor="#757682"
+            editable={canEditComplaintDetails}
           />
 
           <Text style={styles.label}>Description</Text>
@@ -524,6 +545,7 @@ export default function ComplaintManagementScreen() {
             multiline
             placeholder="Describe the issue"
             placeholderTextColor="#757682"
+            editable={canEditComplaintDetails}
           />
 
           <Text style={styles.label}>Location</Text>
@@ -533,8 +555,18 @@ export default function ComplaintManagementScreen() {
             onChangeText={setLocationText}
             placeholder="Complaint location"
             placeholderTextColor="#757682"
+            editable={canEditComplaintDetails}
           />
         </View>
+
+        {!canEditComplaintDetails ? (
+          <View style={styles.lockedNotice}>
+            <MaterialIcons name="lock" size={16} color="#7A4C00" />
+            <Text style={styles.lockedNoticeText}>
+              Complaint content came from the citizen and cannot be edited by operators.
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Operator Handling</Text>
@@ -740,6 +772,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: "#FFFFFF",
   },
+  selectDisabled: { opacity: 0.65 },
   selectText: { color: "#121C28", fontSize: 14, flex: 1, paddingRight: 10 },
   dropdownMenu: {
     borderWidth: 1,
@@ -784,6 +817,17 @@ const styles = StyleSheet.create({
   },
   saveButtonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
   helperText: { color: "#5A6272", fontSize: 12 },
+  lockedNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#F5C26B",
+    borderRadius: 12,
+    backgroundColor: "#FFF8E8",
+    padding: 12,
+  },
+  lockedNoticeText: { flex: 1, color: "#7A4C00", fontSize: 12, lineHeight: 18 },
   errorText: { color: "#BA1A1A", fontSize: 12 },
   muted: { color: "#757682", fontSize: 12 },
   timelineRow: { flexDirection: "row", gap: 10, marginTop: 4 },
