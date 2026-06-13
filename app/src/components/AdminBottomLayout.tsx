@@ -10,18 +10,16 @@ import {
   View,
 } from "react-native";
 
-type AdminTab = "settings" | "complaints" | "whatsapp";
+type AdminTab = "settings" | "complaints";
 
 export function AdminBottomLayout({ activeTab }: { activeTab: AdminTab }) {
   const router = useRouter();
   const [layoutWidth, setLayoutWidth] = useState(0);
-  const tabIndex =
-    activeTab === "settings" ? 0 : activeTab === "complaints" ? 1 : 2;
+  const tabIndex = activeTab === "settings" ? 0 : 1;
   const animatedIndex = useRef(new Animated.Value(tabIndex)).current;
   const iconScales = useRef({
     settings: new Animated.Value(activeTab === "settings" ? 1.1 : 1),
     complaints: new Animated.Value(activeTab === "complaints" ? 1.1 : 1),
-    whatsapp: new Animated.Value(activeTab === "whatsapp" ? 1.1 : 1),
   }).current;
 
   useEffect(() => {
@@ -60,19 +58,17 @@ export function AdminBottomLayout({ activeTab }: { activeTab: AdminTab }) {
     Animated.parallel([
       runBounce(iconScales.settings, activeTab === "settings"),
       runBounce(iconScales.complaints, activeTab === "complaints"),
-      runBounce(iconScales.whatsapp, activeTab === "whatsapp"),
     ]).start();
   }, [activeTab, iconScales]);
 
-  const segmentWidth = layoutWidth > 0 ? layoutWidth / 3 : 0;
+  const segmentWidth = layoutWidth > 0 ? layoutWidth / 2 : 0;
   const indicatorWidth =
     segmentWidth > 0 ? Math.max(92, segmentWidth - 20) : 92;
   const translateX = animatedIndex.interpolate({
-    inputRange: [0, 1, 2],
+    inputRange: [0, 1],
     outputRange: [
       segmentWidth * 0 + (segmentWidth - indicatorWidth) / 2,
       segmentWidth * 1 + (segmentWidth - indicatorWidth) / 2,
-      segmentWidth * 2 + (segmentWidth - indicatorWidth) / 2,
     ],
   });
 
@@ -135,28 +131,6 @@ export function AdminBottomLayout({ activeTab }: { activeTab: AdminTab }) {
           }
         >
           Complaints
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.tab, activeTab === "whatsapp" && styles.activeTab]}
-        onPress={() => {
-          if (activeTab !== "whatsapp") {
-            router.push("/admin/whatsapp" as never);
-          }
-        }}
-      >
-        <Animated.View style={{ transform: [{ scale: iconScales.whatsapp }] }}>
-          <MaterialIcons
-            name="chat"
-            size={20}
-            color={activeTab === "whatsapp" ? "#00714D" : "#444651"}
-          />
-        </Animated.View>
-        <Text
-          style={activeTab === "whatsapp" ? styles.activeText : styles.tabText}
-        >
-          WhatsApp
         </Text>
       </TouchableOpacity>
     </View>

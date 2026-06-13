@@ -42,7 +42,7 @@ export default function LeadershipDashboardScreen() {
         </View>
         <TouchableOpacity
           style={styles.iconBtn}
-          onPress={() => router.replace("/admin/whatsapp" as never)}
+          onPress={() => router.replace("/leadership/settings" as never)}
         >
           <MaterialIcons name="more-vert" size={22} color="#757682" />
         </TouchableOpacity>
@@ -114,12 +114,6 @@ export default function LeadershipDashboardScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <BottomItem icon="home" label="Home" active onPress={() => router.push("/leader" as never)} />
-        <BottomItem icon="bar-chart" label="Stats" onPress={() => router.push("/leadership/heatmap" as never)} />
-        <BottomItem icon="groups" label="Voters" onPress={() => router.push("/feed" as never)} />
-        <BottomItem icon="settings" label="Settings" onPress={() => router.push("/leadership/settings" as never)} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -175,25 +169,6 @@ function RankRow({ name, score }: { name: string; score: number }) {
       </View>
       <Text style={styles.rankScore}>{score}</Text>
     </View>
-  );
-}
-
-function BottomItem({
-  icon,
-  label,
-  active,
-  onPress,
-}: {
-  icon: keyof typeof MaterialIcons.glyphMap;
-  label: string;
-  active?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity style={styles.bottomItem} onPress={onPress}>
-      <MaterialIcons name={icon} size={20} color={active ? "#00236F" : "#757682"} />
-      <Text style={[styles.bottomLabel, active && { color: "#00236F" }]}>{label}</Text>
-    </TouchableOpacity>
   );
 }
 
@@ -293,20 +268,4 @@ const styles = StyleSheet.create({
   rankBarTrack: { flex: 1, height: 10, borderRadius: 6, backgroundColor: "#E5EEFF", overflow: "hidden" },
   rankBarFill: { height: "100%", borderRadius: 6, backgroundColor: "#00236F" },
   rankScore: { width: 28, textAlign: "right", color: "#00236F", fontSize: 13, fontWeight: "700" },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 70,
-    borderTopWidth: 1,
-    borderTopColor: "#C5C5D3",
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 8,
-  },
-  bottomItem: { alignItems: "center", gap: 3 },
-  bottomLabel: { color: "#757682", fontSize: 11, fontWeight: "700" },
 });

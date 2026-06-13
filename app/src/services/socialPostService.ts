@@ -8,9 +8,9 @@ export type SocialPost = {
   category: string | null;
   location_text: string | null;
   image_url: string | null;
+  image_urls: string[] | null;
   audience: "public" | "registered_citizens" | null;
   status: "draft" | "pending_approval" | "published" | "archived" | null;
-  whatsapp_broadcast: boolean;
   published_at: string | null;
   created_at: string;
   updated_at: string;

@@ -15,7 +15,6 @@ const { registerVoterRoutes } = require("./routes/voters");
 const { registerComplaintRoutes } = require("./routes/complaints");
 const { registerOperatorRoutes } = require("./routes/operator");
 const { registerSocialPostRoutes } = require("./routes/socialPosts");
-const { registerWhatsappRoutes } = require("./routes/whatsapp");
 const { registerRoutingRoutes } = require("./routes/routing");
 const { createUpload, registerUploadRoutes } = require("./routes/uploads");
 
@@ -71,7 +70,6 @@ async function start() {
   registerComplaintRoutes(app, db);
   registerOperatorRoutes(app, db);
   registerSocialPostRoutes(app, db);
-  registerWhatsappRoutes(app, db);
   registerRoutingRoutes(app, db);
   registerUploadRoutes(app, upload, env);
 

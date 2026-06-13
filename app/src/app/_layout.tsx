@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "../context/AuthContext";
 import { CitizenBottomLayout } from "../components/CitizenBottomLayout";
 import { OperatorBottomLayout } from "../components/OperatorBottomLayout";
 import { AdminBottomLayout } from "../components/AdminBottomLayout";
+import { LeadershipBottomNav } from "../components/LeadershipBottomNav";
 import {
   canAccessRoute,
   isPublicRoute,
@@ -63,8 +64,31 @@ function getAdminTab(pathname: string) {
   if (pathname === "/admin/complaint-lifecycle") {
     return "complaints";
   }
-  if (pathname === "/admin/whatsapp") {
-    return "whatsapp";
+  return null;
+}
+
+function getLeaderTab(pathname: string) {
+  if (pathname === "/leader" || pathname === "/leader/index") {
+    return "dashboard";
+  }
+  if (
+    pathname === "/feed" ||
+    pathname === "/citizen/social-feed" ||
+    pathname === "/leadership/social-feed"
+  ) {
+    return "social";
+  }
+  if (
+    pathname === "/leadership/create-post" ||
+    pathname === "/leader/post/new"
+  ) {
+    return "social";
+  }
+  if (pathname === "/leadership/settings") {
+    return "menu";
+  }
+  if (pathname === "/leadership/analytics-map" || pathname === "/leadership/heatmap") {
+    return "dashboard";
   }
   return null;
 }
@@ -77,6 +101,7 @@ function RouteGuard() {
   const activeOperatorTab =
     userRole === "operator" ? getOperatorTab(pathname) : null;
   const activeAdminTab = userRole === "admin" ? getAdminTab(pathname) : null;
+  const activeLeaderTab = userRole === "leader" ? getLeaderTab(pathname) : null;
   const publicRoute = isPublicRoute(pathname);
   const isAuthorized = isLoggedIn && !!userRole && !isLoggingOut;
 
@@ -133,7 +158,14 @@ function RouteGuard() {
       ) : null}
       {isHydrated && isLoggedIn && userRole === "admin" && activeAdminTab ? (
         <AdminBottomLayout
-          activeTab={activeAdminTab as "settings" | "complaints" | "whatsapp"}
+          activeTab={activeAdminTab as "settings" | "complaints"}
+        />
+      ) : null}
+      {isHydrated && isLoggedIn && userRole === "leader" && activeLeaderTab ? (
+        <LeadershipBottomNav
+          activeTab={
+            activeLeaderTab as "dashboard" | "social" | "menu"
+          }
         />
       ) : null}
     </View>

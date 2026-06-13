@@ -220,36 +220,6 @@ export default function HeatmapScreen() {
         ))}
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/leader" as never)}
-        >
-          <MaterialIcons name="home" size={20} color="#00236F" />
-          <Text style={styles.navActive}>HOME</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => Alert.alert("Stats", "Stats view coming soon.")}
-        >
-          <MaterialIcons name="bar-chart" size={20} color="#757682" />
-          <Text style={styles.navText}>STATS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => Alert.alert("Voters", "Voters view coming soon.")}
-        >
-          <MaterialIcons name="groups" size={20} color="#757682" />
-          <Text style={styles.navText}>VOTERS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/leader" as never)}
-        >
-          <MaterialIcons name="settings" size={20} color="#757682" />
-          <Text style={styles.navText}>SETTINGS</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -483,20 +453,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 72,
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#C5C5D3",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-  },
-  navItem: { alignItems: "center", gap: 2 },
-  navText: { color: "#757682", fontSize: 10, fontWeight: "700" },
-  navActive: { color: "#00236F", fontSize: 10, fontWeight: "700" },
 });

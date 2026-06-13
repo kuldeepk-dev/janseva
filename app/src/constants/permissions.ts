@@ -30,6 +30,7 @@ export const ROLE_ROUTES: Record<Role, RouteRule[]> = {
   ],
   leader: [
     /^\/leader$/,
+    /^\/leadership\/create-post$/,
     /^\/leadership\/analytics-map$/,
     /^\/leadership\/heatmap$/,
     /^\/leadership\/settings$/,
@@ -38,7 +39,6 @@ export const ROLE_ROUTES: Record<Role, RouteRule[]> = {
     /^\/admin\/routing$/,
     /^\/admin\/complaint-lifecycle$/,
     /^\/leader\/post\/new$/,
-    /^\/admin\/whatsapp$/,
     /^\/complaints$/,
     /^\/complaints\/[^/]+$/,
     /^\/feed$/,
@@ -48,7 +48,6 @@ export const ROLE_ROUTES: Record<Role, RouteRule[]> = {
     /^\/admin\/settings$/,
     /^\/admin\/routing$/,
     /^\/admin\/complaint-lifecycle$/,
-    /^\/admin\/whatsapp$/,
   ],
 };
 

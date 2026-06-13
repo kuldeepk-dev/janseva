@@ -1,15 +1,14 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Alert } from "react-native";
 
 function SettingCard({
   icon,
@@ -109,100 +108,16 @@ export default function LeadershipSettingsScreen() {
             title="Default Language"
             value="English (India)"
           />
-          <SettingCard
-            icon="chat"
-            title="WhatsApp Cloud"
-            value="Connected • +91 98XXXXXX12"
-            status="ok"
-          />
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.panelTitle}>Template Editor</Text>
+          <Text style={styles.panelTitle}>Account Preferences</Text>
           <Text style={styles.panelSub}>
-            Broadcast message for ward-level campaign updates
+            Review leadership profile settings and localization defaults for
+            the portal.
           </Text>
-          <View style={styles.templateBox}>
-            <Text style={styles.templateText}>
-              Namaste {"{name}"}, your grievance {"{ticket_id}"} for{" "}
-              {"{department}"} is now {"{status}"}.
-            </Text>
-          </View>
-          <View style={styles.chipsRow}>
-            <View style={styles.chip}>
-              <Text style={styles.chipText}>{"{name}"}</Text>
-            </View>
-            <View style={styles.chip}>
-              <Text style={styles.chipText}>{"{ticket_id}"}</Text>
-            </View>
-            <View style={styles.chip}>
-              <Text style={styles.chipText}>{"{department}"}</Text>
-            </View>
-            <View style={styles.chip}>
-              <Text style={styles.chipText}>{"{status}"}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.panel}>
-          <View style={styles.quietHead}>
-            <View>
-              <Text style={styles.panelTitle}>Quiet Hours</Text>
-              <Text style={styles.panelSub}>
-                Suppress outbound WhatsApp messages during restricted hours
-              </Text>
-            </View>
-            <Switch value />
-          </View>
-          <View style={styles.timeRow}>
-            <View style={styles.timeBox}>
-              <Text style={styles.timeLabel}>Start</Text>
-              <Text style={styles.timeValue}>10:00 PM</Text>
-            </View>
-            <View style={styles.timeBox}>
-              <Text style={styles.timeLabel}>End</Text>
-              <Text style={styles.timeValue}>07:00 AM</Text>
-            </View>
-          </View>
-          <View style={styles.warnBox}>
-            <MaterialIcons name="warning-amber" size={16} color="#7A5900" />
-            <Text style={styles.warnText}>
-              Urgent alerts bypass quiet hours only when marked critical.
-            </Text>
-          </View>
         </View>
       </ScrollView>
-
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/leader" as never)}
-        >
-          <MaterialIcons name="dashboard" size={20} color="#444651" />
-          <Text style={styles.navText}>Dashboard</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/admin/whatsapp" as never)}
-        >
-          <MaterialIcons name="campaign" size={20} color="#444651" />
-          <Text style={styles.navText}>Broadcast</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push("/feed" as never)}
-        >
-          <MaterialIcons name="share" size={20} color="#444651" />
-          <Text style={styles.navText}>Social</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.navItem, styles.activeNav]}
-          onPress={() => Alert.alert("Menu", "Menu options coming soon.")}
-        >
-          <MaterialIcons name="menu" size={20} color="#002113" />
-          <Text style={styles.activeNavText}>Menu</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -292,69 +207,5 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   panelTitle: { color: "#121C28", fontSize: 18, fontWeight: "600" },
-  panelSub: { color: "#444651", fontSize: 12 },
-  templateBox: {
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 10,
-    backgroundColor: "#F8F9FF",
-    padding: 10,
-  },
-  templateText: { color: "#444651", fontSize: 13, lineHeight: 19 },
-  chipsRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  chip: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: "#DFE9FA",
-  },
-  chipText: { color: "#00236F", fontSize: 11, fontWeight: "700" },
-  quietHead: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  timeRow: { flexDirection: "row", gap: 8 },
-  timeBox: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#C5C5D3",
-    borderRadius: 10,
-    backgroundColor: "#F8F9FF",
-    padding: 10,
-  },
-  timeLabel: { color: "#444651", fontSize: 11, marginBottom: 3 },
-  timeValue: { color: "#121C28", fontSize: 15, fontWeight: "700" },
-  warnBox: {
-    flexDirection: "row",
-    gap: 6,
-    alignItems: "center",
-    borderRadius: 8,
-    backgroundColor: "#FFF8E6",
-    padding: 8,
-  },
-  warnText: { color: "#7A5900", fontSize: 12, flex: 1 },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 72,
-    borderTopWidth: 1,
-    borderTopColor: "#C5C5D3",
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingHorizontal: 8,
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  navText: { color: "#444651", fontSize: 12, fontWeight: "500" },
-  activeNav: { backgroundColor: "#6CF8BB", borderRadius: 16 },
-  activeNavText: { color: "#002113", fontSize: 12, fontWeight: "700" },
+  panelSub: { color: "#444651", fontSize: 12, lineHeight: 18 },
 });

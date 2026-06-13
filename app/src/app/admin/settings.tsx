@@ -130,13 +130,6 @@ export default function AdminSettingsScreen() {
             }
           />
           <ConfigCard
-            icon="chat"
-            title="WhatsApp Settings"
-            desc="Configure automated updates, citizen registration via WhatsApp, and API integrations."
-            action="API Console"
-            onPress={() => router.push("/admin/whatsapp" as never)}
-          />
-          <ConfigCard
             icon="gavel"
             title="Moderation"
             desc="Set keyword filters for the feed, manage flagged reports, and review constituent feedback."

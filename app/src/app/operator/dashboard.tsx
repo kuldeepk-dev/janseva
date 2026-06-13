@@ -262,7 +262,7 @@ export default function OperatorDashboardScreen() {
     },
     {
       icon: "campaign" as const,
-      label: "Create Social Draft",
+      label: "Manage Social Posts",
       tone: { bg: "#E6F3EC", fg: "#006C49" },
       onPress: () =>
         router.push(

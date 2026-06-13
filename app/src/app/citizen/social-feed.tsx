@@ -1,8 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import { getPublishedPosts } from "../../services/socialPostService";
+import { PostImageCarousel } from "../../components/PostImageCarousel";
 import {
   Alert,
   ScrollView,
@@ -18,6 +19,7 @@ function FeedCard({
   title,
   desc,
   tag,
+  imageUrls,
   tagTone = "green",
   time,
   onShare,
@@ -25,13 +27,18 @@ function FeedCard({
   title: string;
   desc: string;
   tag: string;
+  imageUrls: string[];
   tagTone?: "green" | "blue";
   time: string;
   onShare: () => void;
 }) {
+  const visibleImages = imageUrls.slice(0, 4);
   return (
     <View style={styles.card}>
       <View style={styles.image}>
+        {visibleImages.length ? (
+          <PostImageCarousel imageUrls={visibleImages} aspectRatio={1.65} />
+        ) : null}
         <View style={[styles.tag, tagTone === "blue" && styles.tagBlue]}>
           <Text style={styles.tagText}>{tag}</Text>
         </View>
@@ -40,7 +47,6 @@ function FeedCard({
         <Text style={styles.cardTitle}>{title}</Text>
         <Text style={styles.cardDesc}>{desc}</Text>
         <View style={styles.cardFoot}>
-          <Text style={styles.metrics}>12 comments • 48 reactions</Text>
           <TouchableOpacity style={styles.shareBtn} onPress={onShare}>
             <MaterialIcons name="share" size={16} color="#00236F" />
             <Text style={styles.shareText}>Share</Text>
@@ -63,6 +69,7 @@ export default function SocialFeedScreen() {
       title: string;
       desc: string;
       tag: string;
+      imageUrls: string[];
       tagTone: "green" | "blue";
       time: string;
     }>
@@ -86,6 +93,9 @@ export default function SocialFeedScreen() {
           title: item.title ?? "Update",
           desc: item.content ?? "",
           tag: item.category ?? "Update",
+          imageUrls:
+            item.image_urls?.filter(Boolean) ??
+            (item.image_url ? [item.image_url] : []),
           tagTone: (item.category === "Health" ? "blue" : "green") as
             | "green"
             | "blue",
@@ -108,29 +118,7 @@ export default function SocialFeedScreen() {
     };
   }, []);
 
-  const fallbackPosts = useMemo(
-    () => [
-      {
-        id: "1",
-        title: "Ward 12 Road Repair Completion",
-        desc: "The main artery road for Ward 12 has been successfully resurfaced, benefiting over 500 households.",
-        tag: "Infrastructure",
-        tagTone: "green" as const,
-        time: "2 hours ago",
-      },
-      {
-        id: "2",
-        title: "Free Health Camp: Sunday",
-        desc: "Join us this Sunday at the Community Center for a free general checkup and vaccination drive.",
-        tag: "Health",
-        tagTone: "blue" as const,
-        time: "5 hours ago",
-      },
-    ],
-    [],
-  );
-  const sourcePosts = posts.length ? posts : fallbackPosts;
-  const visiblePosts = sourcePosts.filter(
+  const visiblePosts = posts.filter(
     post => activeFilter === "All" || post.tag === activeFilter,
   );
 
@@ -208,11 +196,21 @@ export default function SocialFeedScreen() {
             title={post.title}
             desc={post.desc}
             tag={post.tag.toUpperCase()}
+            imageUrls={post.imageUrls}
             tagTone={post.tagTone}
             time={post.time}
             onShare={() => handleShare(post.title)}
           />
         ))}
+
+        {!visiblePosts.length ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No posts yet</Text>
+            <Text style={styles.emptyText}>
+              Published posts will appear here once staff share them.
+            </Text>
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -266,12 +264,13 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   image: {
-    height: 150,
+    position: "relative",
     backgroundColor: "#CBD9E9",
-    alignItems: "flex-end",
-    padding: 8,
   },
   tag: {
+    position: "absolute",
+    top: 8,
+    right: 8,
     backgroundColor: "#006C49",
     borderRadius: 99,
     paddingHorizontal: 8,
@@ -296,6 +295,17 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   shareText: { color: "#00236F", fontSize: 11, fontWeight: "700" },
-  metrics: { fontSize: 11, color: "#757682" },
   time: { fontSize: 11, color: "#757682", fontWeight: "600" },
+  emptyState: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#C5C5D3",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 18,
+    alignItems: "center",
+    gap: 4,
+  },
+  emptyTitle: { color: "#121C28", fontSize: 14, fontWeight: "700" },
+  emptyText: { color: "#444651", fontSize: 12, lineHeight: 18, textAlign: "center" },
 });

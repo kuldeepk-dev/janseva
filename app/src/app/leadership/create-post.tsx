@@ -1,10 +1,21 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import * as ImagePicker from "expo-image-picker";
 import { apiConfigError } from "../../lib/api";
-import { createDraft, publishPost } from "../../services/socialPostService";
 import {
+  createDraft,
+  getPendingPosts,
+  getPublishedPosts,
+  publishPost,
+  type SocialPost,
+} from "../../services/socialPostService";
+import { uploadSocialPostImage } from "../../services/fileUploadService";
+import { PostImageCarousel } from "../../components/PostImageCarousel";
+import {
+  ActivityIndicator,
   Alert,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -22,20 +33,259 @@ const categories = [
   "Grievance Resolved",
 ];
 
+const MAX_POST_IMAGES = 5;
+
+type DraftStatus = "draft" | "pending_approval" | "publish";
+type HistoryStatus = "published" | "pending_approval";
+
+type PostHistoryItem = {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  locationText: string;
+  imageUrls: string[];
+  status: HistoryStatus;
+  timestamp: string;
+};
+
+function formatRelativeTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Just now";
+  }
+
+  const diff = Date.now() - date.getTime();
+  const mins = Math.max(0, Math.floor(diff / 60000));
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function normalizePost(post: SocialPost, status: HistoryStatus): PostHistoryItem {
+  const imageUrls =
+    post.image_urls?.filter(Boolean) ??
+    (post.image_url ? [post.image_url] : []);
+
+  return {
+    id: post.id,
+    title: post.title ?? post.category ?? "Untitled post",
+    content: post.content ?? "",
+    category: post.category ?? "Update",
+    locationText: post.location_text ?? "",
+    imageUrls,
+    status,
+    timestamp: post.published_at ?? post.updated_at ?? post.created_at,
+  };
+}
+
+async function loadRecentPosts() {
+  if (apiConfigError) {
+    throw new Error(apiConfigError);
+  }
+
+  const [published, pending] = await Promise.all([
+    getPublishedPosts(),
+    getPendingPosts(),
+  ]);
+
+  return [...published.map(post => normalizePost(post, "published"))]
+    .concat(pending.map(post => normalizePost(post, "pending_approval")))
+    .sort((left, right) => {
+      return new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime();
+    })
+    .slice(0, 6);
+}
+
+function PostPreviewCard({
+  roleLabel,
+  category,
+  content,
+  locationText,
+  imageUrls,
+  updatedLabel,
+  statusLabel,
+}: {
+  roleLabel: string;
+  category: string;
+  content: string;
+  locationText: string;
+  imageUrls: string[];
+  updatedLabel: string;
+  statusLabel: string;
+}) {
+  const hasContent = content.trim().length > 0;
+  const hasLocation = locationText.trim().length > 0;
+  const visibleImages = imageUrls.slice(0, MAX_POST_IMAGES);
+
+  return (
+    <View style={styles.previewCard}>
+      <View style={styles.previewHeader}>
+        <View style={styles.previewHeadLeft}>
+          <View style={styles.previewAvatar}>
+            <Text style={styles.previewAvatarText}>
+              {roleLabel
+                .split(" ")
+                .map(part => part[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase()}
+            </Text>
+          </View>
+          <View>
+            <Text style={styles.previewChannel}>{roleLabel}</Text>
+            <Text style={styles.previewMeta}>
+              {statusLabel} | {updatedLabel}
+            </Text>
+          </View>
+        </View>
+        <MaterialIcons name="more-vert" size={18} color="#FFFFFF" />
+      </View>
+      <View style={styles.previewBody}>
+        <View style={styles.previewMetaRow}>
+          <View style={styles.previewTag}>
+            <Text style={styles.previewTagText}>{category}</Text>
+          </View>
+          <View style={styles.previewLocationChip}>
+            <MaterialIcons name="location-on" size={14} color="#444651" />
+            <Text style={styles.previewLocationText}>
+              {hasLocation ? locationText : "Location not added"}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={[styles.previewText, !hasContent && styles.previewPlaceholder]}>
+          {hasContent
+            ? content
+            : "Start typing in the composer to see the live preview."}
+        </Text>
+
+        {visibleImages.length ? (
+          <PostImageCarousel
+            imageUrls={visibleImages}
+            aspectRatio={1.4}
+            style={styles.previewCarousel}
+          />
+        ) : null}
+
+        <View style={styles.previewFooter}>
+          <View style={styles.previewStatusPill}>
+            <Text style={styles.previewStatusText}>
+              {hasContent ? "Ready to publish" : "Draft"}
+            </Text>
+          </View>
+          <Text style={styles.previewTime}>{updatedLabel}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function CreatePostScreen() {
   const router = useRouter();
   const { draft } = useLocalSearchParams<{ draft?: string }>();
+  const isOperatorDraft = draft === "operator";
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(categories[0]);
   const [content, setContent] = useState("");
   const [locationText, setLocationText] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [recentPosts, setRecentPosts] = useState<PostHistoryItem[]>([]);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const backTarget = draft === "operator" ? "/operator" : "/leader";
+  const roleLabel = isOperatorDraft ? "Operator Draft" : "Leadership Draft";
+  const contentLength = content.length;
+  const updatedLabel = "Live preview";
 
-  const handlePublish = async (
-    status: "draft" | "pending_approval" | "publish",
-  ) => {
+  const refreshHistory = async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const items = await loadRecentPosts();
+      setRecentPosts(items);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load posts.";
+      setHistoryError(message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshHistory();
+    // Intentionally run once on mount to load the latest real posts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const openHistoryPost = (item: PostHistoryItem) => {
+    setSelectedPostId(item.id);
+    setActiveCategory(item.category);
+    setContent(item.content);
+    setLocationText(item.locationText);
+    setImageUrls(item.imageUrls);
+    setPreviewOpen(true);
+  };
+
+  const handleImageUpload = async () => {
+    setError(null);
+    if (apiConfigError) {
+      setError(apiConfigError);
+      return;
+    }
+
+    if (imageUrls.length >= MAX_POST_IMAGES) {
+      Alert.alert("Images", `You can attach a maximum of ${MAX_POST_IMAGES} images.`);
+      return;
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Photos", "Photo library permission is required to upload images.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: MAX_POST_IMAGES - imageUrls.length,
+      quality: 0.85,
+    });
+
+    if (result.canceled || !result.assets?.[0]) {
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const uploads = await Promise.all(
+        result.assets.slice(0, MAX_POST_IMAGES - imageUrls.length).map(
+          async picked =>
+            uploadSocialPostImage({
+              uri: picked.uri,
+              name: picked.fileName ?? `social-post-${Date.now()}.jpg`,
+              type: picked.mimeType ?? "image/jpeg",
+            }),
+        ),
+      );
+      setImageUrls(prev => [...prev, ...uploads].slice(0, MAX_POST_IMAGES));
+      setSelectedPostId(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Image upload failed.";
+      setError(message);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handlePublish = async (status: DraftStatus) => {
     setError(null);
     if (!content.trim()) {
       setError("Post content is required.");
@@ -46,6 +296,7 @@ export default function CreatePostScreen() {
       router.push("/feed" as never);
       return;
     }
+
     setIsLoading(true);
     try {
       const draftPost = await createDraft({
@@ -53,16 +304,28 @@ export default function CreatePostScreen() {
         content: content.trim(),
         category: activeCategory,
         location_text: locationText.trim() || null,
+        image_url: imageUrls[0] ?? null,
+        image_urls: imageUrls.length ? imageUrls : null,
         status: status === "publish" ? "draft" : status,
         audience: "public",
       });
+
       if (status === "publish") {
         await publishPost(draftPost.id);
+        Alert.alert("Post", "Published successfully.");
+        await refreshHistory();
         router.push("/feed" as never);
-      } else {
-        Alert.alert("Post", "Saved successfully.");
-        router.push(backTarget as never);
+        return;
       }
+
+      Alert.alert(
+        "Post",
+        status === "pending_approval"
+          ? "Submitted for approval."
+          : "Saved as draft.",
+      );
+      await refreshHistory();
+      router.push(backTarget as never);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Post save failed.";
       setError(message);
@@ -81,7 +344,7 @@ export default function CreatePostScreen() {
           >
             <MaterialIcons name="arrow-back" size={22} color="#00236F" />
           </TouchableOpacity>
-          <Text style={styles.brand}>जन सेवा</Text>
+          <Text style={styles.brand}>Jan Seva</Text>
         </View>
         <View style={styles.headerRight}>
           <Text style={styles.lang}>English</Text>
@@ -108,10 +371,13 @@ export default function CreatePostScreen() {
             {categories.map(item => {
               const active = activeCategory === item;
               return (
-                <TouchableOpacity
+                  <TouchableOpacity
                   key={item}
                   style={[styles.chip, active && styles.chipActive]}
-                  onPress={() => setActiveCategory(item)}
+                  onPress={() => {
+                    setSelectedPostId(null);
+                    setActiveCategory(item);
+                  }}
                 >
                   <Text
                     style={[styles.chipText, active && styles.chipTextActive]}
@@ -123,7 +389,7 @@ export default function CreatePostScreen() {
             })}
           </View>
 
-          <Text style={styles.label}>Post Content (English/हिंदी/मराठी)</Text>
+          <Text style={styles.label}>Post Content</Text>
           <TextInput
             multiline
             placeholder="Write your message to the constituents here..."
@@ -131,38 +397,60 @@ export default function CreatePostScreen() {
             style={styles.textarea}
             textAlignVertical="top"
             value={content}
-            onChangeText={setContent}
+            onChangeText={value => {
+              setSelectedPostId(null);
+              setContent(value);
+            }}
           />
           <View style={styles.rowBetween}>
-            <Text style={styles.small}>Multi-lingual input enabled</Text>
-            <Text style={styles.small}>0 / 2000 characters</Text>
+            <Text style={styles.small}>Live editor</Text>
+            <Text style={styles.small}>{contentLength} / 2000 characters</Text>
           </View>
 
           <Text style={styles.label}>Media Attachments</Text>
           <View style={styles.mediaRow}>
             <TouchableOpacity
-              style={styles.mediaBox}
-              onPress={() =>
-                Alert.alert("Media", "Image upload is a placeholder.")
-              }
+              style={[styles.mediaBox, imageUrls.length >= MAX_POST_IMAGES && styles.mediaBoxDisabled]}
+              onPress={() => void handleImageUpload()}
+              disabled={isUploadingImage || imageUrls.length >= MAX_POST_IMAGES}
             >
               <MaterialIcons
                 name="add-photo-alternate"
                 size={24}
-                color="#757682"
+                color={imageUrls.length >= MAX_POST_IMAGES ? "#A0A7B8" : "#757682"}
               />
-              <Text style={styles.mediaText}>Add Image</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.mediaBox}
-              onPress={() =>
-                Alert.alert("Media", "Video upload is a placeholder.")
-              }
-            >
-              <MaterialIcons name="videocam" size={24} color="#757682" />
-              <Text style={styles.mediaText}>Add Video</Text>
+              <Text style={styles.mediaText}>
+                {isUploadingImage
+                  ? "Uploading..."
+                  : imageUrls.length >= MAX_POST_IMAGES
+                    ? "Max 5 images"
+                    : `Add Images (${imageUrls.length}/${MAX_POST_IMAGES})`}
+              </Text>
             </TouchableOpacity>
           </View>
+          {imageUrls.length ? (
+            <View style={styles.selectedImageGrid}>
+              {imageUrls.map((url, index) => (
+                <View key={`${url}-${index}`} style={styles.selectedImageWrap}>
+                  <Image source={{ uri: url }} style={styles.selectedImage} />
+                  <TouchableOpacity
+                    style={styles.selectedImageRemove}
+                    onPress={() =>
+                      setImageUrls(prev => prev.filter((_, i) => i !== index))
+                    }
+                    disabled={isUploadingImage}
+                  >
+                    <MaterialIcons name="close" size={14} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {imageUrls.length ? (
+            <Text style={styles.selectedImageText}>
+              {imageUrls.length} of {MAX_POST_IMAGES} images attached
+            </Text>
+          ) : null}
 
           <Text style={styles.label}>Location Tag</Text>
           <View style={styles.locationBox}>
@@ -172,7 +460,10 @@ export default function CreatePostScreen() {
               placeholderTextColor="#757682"
               style={styles.locationInput}
               value={locationText}
-              onChangeText={setLocationText}
+              onChangeText={value => {
+                setSelectedPostId(null);
+                setLocationText(value);
+              }}
             />
           </View>
         </View>
@@ -225,23 +516,85 @@ export default function CreatePostScreen() {
         </View>
 
         <View style={styles.previewWrap}>
-          <Text style={styles.previewTag}>LIVE PREVIEW</Text>
-          <View style={styles.previewCard}>
-            <View style={styles.previewHead}>
-              <View style={styles.previewAvatar}>
-                <Text style={styles.avatarText}>SP</Text>
-              </View>
-              <View>
-                <Text style={styles.previewName}>Sandeep Patil</Text>
-                <Text style={styles.previewMeta}>Just now • Ward 12</Text>
-              </View>
+          <Text style={styles.previewSectionTag}>LIVE PREVIEW</Text>
+          <PostPreviewCard
+            roleLabel={roleLabel}
+            category={activeCategory}
+            content={content}
+            locationText={locationText}
+            imageUrls={imageUrls}
+            updatedLabel={updatedLabel}
+            statusLabel={
+              selectedPostId ? "Loaded from recent posts" : "Live draft"
+            }
+          />
+        </View>
+
+        <View style={styles.historyCard}>
+          <View style={styles.historyHeader}>
+            <View>
+              <Text style={styles.historyTitle}>Recent Posts</Text>
+              <Text style={styles.historySubtitle}>
+                Published and pending posts the operator can review.
+              </Text>
             </View>
-            <View style={[styles.skeleton, { width: "72%" }]} />
-            <View style={styles.skeleton} />
-            <View style={styles.previewImage}>
-              <MaterialIcons name="image" size={38} color="#C5C5D3" />
-            </View>
+            <TouchableOpacity
+              style={styles.refreshBtn}
+              onPress={() => void refreshHistory()}
+              disabled={historyLoading}
+            >
+              <MaterialIcons name="refresh" size={16} color="#00236F" />
+              <Text style={styles.refreshText}>
+                {historyLoading ? "Loading..." : "Refresh"}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {historyError ? <Text style={styles.errorText}>{historyError}</Text> : null}
+
+          {historyLoading ? (
+            <View style={styles.historyLoading}>
+              <ActivityIndicator size="small" color="#00236F" />
+            </View>
+          ) : recentPosts.length ? (
+            recentPosts.map(item => {
+              const isActive = item.id === selectedPostId;
+              const statusLabel =
+                item.status === "published" ? "Published" : "Pending approval";
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.historyItem, isActive && styles.historyItemActive]}
+                  onPress={() => openHistoryPost(item)}
+                >
+                  <View style={styles.historyTop}>
+                    <View style={styles.historyStatusRow}>
+                      <Text style={styles.historyStatus}>{statusLabel}</Text>
+                      <Text style={styles.historyTime}>
+                        {formatRelativeTime(item.timestamp)}
+                      </Text>
+                    </View>
+                    <MaterialIcons name="chevron-right" size={18} color="#757682" />
+                  </View>
+                  <Text style={styles.historyItemTitle}>{item.title}</Text>
+                  <Text style={styles.historyItemBody} numberOfLines={2}>
+                    {item.content || "No content available."}
+                  </Text>
+                  <View style={styles.historyBottom}>
+                    <Text style={styles.historyCategory}>{item.category}</Text>
+                    <Text style={styles.historyAction}>Load into editor</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No posts yet</Text>
+              <Text style={styles.emptyText}>
+                Published and pending posts will appear here once they are created.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -253,20 +606,23 @@ export default function CreatePostScreen() {
       >
         <View style={styles.previewBackdrop}>
           <View style={styles.previewModal}>
-            <Text style={styles.previewModalTitle}>Preview</Text>
-            <View style={styles.previewCard}>
-              <View style={styles.previewHead}>
-                <View style={styles.previewAvatar}>
-                  <Text style={styles.avatarText}>SP</Text>
-                </View>
-                <View>
-                  <Text style={styles.previewName}>Sandeep Patil</Text>
-                  <Text style={styles.previewMeta}>Just now • Ward 12</Text>
-                </View>
-              </View>
-              <View style={[styles.skeleton, { width: "72%" }]} />
-              <View style={styles.skeleton} />
+            <View style={styles.previewModalHeader}>
+              <Text style={styles.previewModalTitle}>Preview</Text>
+              <TouchableOpacity onPress={() => setPreviewOpen(false)}>
+                <MaterialIcons name="close" size={20} color="#444651" />
+              </TouchableOpacity>
             </View>
+            <PostPreviewCard
+              roleLabel={roleLabel}
+              category={activeCategory}
+              content={content}
+              locationText={locationText}
+              imageUrls={imageUrls}
+              updatedLabel={updatedLabel}
+              statusLabel={
+                selectedPostId ? "Loaded from recent posts" : "Live draft"
+              }
+            />
             <TouchableOpacity
               style={styles.modalClose}
               onPress={() => setPreviewOpen(false)}
@@ -306,7 +662,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
-  content: { padding: 16, gap: 12, paddingBottom: 24 },
+  content: { padding: 16, gap: 12, paddingBottom: 108 },
   title: { color: "#00236F", fontSize: 24, fontWeight: "700" },
   subtitle: { color: "#444651", fontSize: 14, marginTop: -4 },
   errorText: { color: "#BA1A1A", fontSize: 12 },
@@ -359,7 +715,45 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
   },
+  mediaBoxDisabled: {
+    opacity: 0.55,
+  },
   mediaText: { color: "#757682", fontSize: 12, fontWeight: "600" },
+  selectedImageGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  selectedImageWrap: {
+    width: "48%",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#D7DFEF",
+    backgroundColor: "#F8F9FF",
+    overflow: "hidden",
+    position: "relative",
+  },
+  selectedImage: {
+    width: "100%",
+    aspectRatio: 1.25,
+    backgroundColor: "#E8EDF7",
+  },
+  selectedImageText: {
+    color: "#444651",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  selectedImageRemove: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#BA1A1A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   locationBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -440,34 +834,169 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 8,
   },
-  previewTag: { color: "#444651", fontSize: 11, fontWeight: "700" },
+  previewSectionTag: { color: "#444651", fontSize: 11, fontWeight: "700" },
   previewCard: {
-    backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#C5C5D3",
-    borderRadius: 10,
-    padding: 12,
-    gap: 8,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#F8F9FF",
   },
-  previewHead: { flexDirection: "row", gap: 8, alignItems: "center" },
-  previewAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#1E3A8A",
+  previewHeader: {
+    minHeight: 56,
+    backgroundColor: "#075E54",
+    paddingHorizontal: 10,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
   },
-  previewName: { color: "#121C28", fontSize: 13, fontWeight: "700" },
-  previewMeta: { color: "#757682", fontSize: 10 },
-  skeleton: { height: 12, borderRadius: 6, backgroundColor: "#D9E3F4" },
-  previewImage: {
-    width: "100%",
-    aspectRatio: 16 / 9,
-    borderRadius: 8,
+  previewHeadLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  previewAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: "#D9E3F4",
     alignItems: "center",
     justifyContent: "center",
+  },
+  previewAvatarText: { color: "#00236F", fontSize: 11, fontWeight: "700" },
+  previewChannel: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  previewMeta: { color: "#D1DBEC", fontSize: 10 },
+  previewBody: { padding: 12, gap: 10 },
+  previewMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  previewTag: {
+    borderRadius: 999,
+    backgroundColor: "#DCE1FF",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  previewTagText: { color: "#00236F", fontSize: 11, fontWeight: "700" },
+  previewLocationChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  previewLocationText: { color: "#444651", fontSize: 11, fontWeight: "600" },
+  previewText: {
+    color: "#121C28",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  previewPlaceholder: {
+    color: "#757682",
+    fontStyle: "italic",
+  },
+  previewCarousel: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#D7DFEF",
+    backgroundColor: "#E8EDF7",
+  },
+  previewFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  previewStatusPill: {
+    borderRadius: 999,
+    backgroundColor: "#E5EEFF",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  previewStatusText: { color: "#264191", fontSize: 10, fontWeight: "700" },
+  previewTime: { color: "#757682", fontSize: 10, fontWeight: "600" },
+  historyCard: {
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    padding: 14,
+    gap: 10,
+  },
+  historyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  historyTitle: { color: "#121C28", fontSize: 18, fontWeight: "700" },
+  historySubtitle: { color: "#444651", fontSize: 12, lineHeight: 17 },
+  refreshBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    backgroundColor: "#EEF4FF",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  refreshText: { color: "#00236F", fontSize: 12, fontWeight: "700" },
+  historyLoading: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 18,
+  },
+  historyItem: {
+    borderWidth: 1,
+    borderColor: "#D7DFEF",
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+  },
+  historyItemActive: {
+    borderColor: "#00236F",
+    backgroundColor: "#EEF4FF",
+  },
+  historyTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  historyStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  historyStatus: {
+    color: "#006C49",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  historyTime: { color: "#757682", fontSize: 11, fontWeight: "600" },
+  historyItemTitle: { color: "#121C28", fontSize: 14, fontWeight: "700" },
+  historyItemBody: { color: "#444651", fontSize: 13, lineHeight: 18 },
+  historyBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  historyCategory: { color: "#00236F", fontSize: 11, fontWeight: "700" },
+  historyAction: { color: "#757682", fontSize: 11, fontWeight: "600" },
+  emptyState: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#C5C5D3",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+    gap: 4,
+  },
+  emptyTitle: { color: "#121C28", fontSize: 14, fontWeight: "700" },
+  emptyText: {
+    color: "#444651",
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: "center",
   },
   previewBackdrop: {
     flex: 1,
@@ -480,6 +1009,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     gap: 10,
+  },
+  previewModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   previewModalTitle: { color: "#00236F", fontSize: 16, fontWeight: "700" },
   modalClose: { alignItems: "center", paddingVertical: 8 },
