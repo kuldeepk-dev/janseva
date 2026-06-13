@@ -38,6 +38,135 @@ import {
 
 type Priority = "normal" | "urgent" | "critical";
 
+const COMPLAINT_CATEGORIES = [
+  {
+    icon: "water-drop" as const,
+    label: "Water",
+  },
+  {
+    icon: "lightbulb" as const,
+    label: "Electricity",
+  },
+  {
+    icon: "commute" as const,
+    label: "Roads",
+  },
+  {
+    icon: "delete" as const,
+    label: "Waste",
+  },
+  {
+    icon: "shield" as const,
+    label: "Security",
+  },
+  {
+    icon: "health-and-safety" as const,
+    label: "Health",
+  },
+  {
+    icon: "school" as const,
+    label: "Education",
+  },
+  {
+    icon: "park" as const,
+    label: "Public Space",
+  },
+  {
+    icon: "more-horiz" as const,
+    label: "Others",
+  },
+  {
+    icon: "build" as const,
+    label: "Infrastructure",
+  },
+  {
+    icon: "agriculture" as const,
+    label: "Agriculture",
+  },
+  {
+    icon: "work" as const,
+    label: "Job & Employment",
+  },
+  {
+    icon: "gavel" as const,
+    label: "Land Dispute",
+  },
+  {
+    icon: "groups" as const,
+    label: "Personal / Social",
+  },
+  {
+    icon: "local-police" as const,
+    label: "Law & Order",
+  },
+] as const;
+
+const COMPLAINT_SUBCATEGORIES: Record<string, string[]> = {
+  Water: ["No Supply", "Low Pressure", "Contamination", "Leakage", "Billing Issue"],
+  Electricity: [
+    "Power Cut",
+    "Voltage Fluctuation",
+    "Street Light",
+    "Meter Issue",
+    "Billing Issue",
+  ],
+  Roads: ["Potholes", "Damaged Road", "Traffic Signal", "Street Sign", "Drainage"],
+  Waste: [
+    "Collection Delay",
+    "Littering",
+    "Bin Overflow",
+    "Illegal Dumping",
+    "Recycling",
+  ],
+  Security: [
+    "Street Crime",
+    "Vandalism",
+    "Suspicious Activity",
+    "CCTV Issue",
+    "Lighting",
+  ],
+  Health: [
+    "Hospital Service",
+    "Sanitation",
+    "Disease Outbreak",
+    "Ambulance",
+    "Medical Staff",
+  ],
+  Education: [
+    "School Infrastructure",
+    "Teacher Absence",
+    "Mid-day Meal",
+    "Books",
+    "Facilities",
+  ],
+  "Public Space": [
+    "Park Maintenance",
+    "Playground",
+    "Public Toilet",
+    "Encroachment",
+    "Cleanliness",
+  ],
+  Others: ["Noise Pollution", "Stray Animals", "Building Violation", "Corruption", "Other"],
+  Infrastructure: ["Road Repair", "Drainage", "Street Light", "Water Supply", "Public Building"],
+  Agriculture: ["Crop Damage", "Irrigation", "Fertilizer Supply", "Seed Availability", "Other"],
+  "Job & Employment": [
+    "MNREGA Delay",
+    "Employment Application",
+    "Payment Delay",
+    "Skill Training",
+    "Other",
+  ],
+  "Land Dispute": ["Boundary Issue", "Record Correction", "Encroachment", "Mutation Delay", "Other"],
+  "Personal / Social": [
+    "Pension Issue",
+    "Certificate Request",
+    "Marriage Assistance",
+    "Family Record",
+    "Other",
+  ],
+  "Law & Order": ["Noise Complaint", "Street Crime", "Vandalism", "Suspicious Activity", "Other"],
+};
+
 const STATUS_OPTIONS: Array<{
   value: ComplaintStatus;
   label: string;
@@ -116,6 +245,8 @@ export default function ComplaintManagementScreen() {
   const [internalNotes, setInternalNotes] = useState("");
   const [resolutionDetails, setResolutionDetails] = useState("");
   const [showCitizenDropdown, setShowCitizenDropdown] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showSubCategoryDropdown, setShowSubCategoryDropdown] = useState(false);
   const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,6 +258,32 @@ export default function ComplaintManagementScreen() {
     () => new Map(departments.map(item => [item.id, item])),
     [departments],
   );
+
+  const categoryOptions = useMemo(() => {
+    const options: string[] = [...COMPLAINT_CATEGORIES.map(item => item.label)];
+    if (category.trim() && !options.includes(category.trim())) {
+      options.unshift(category.trim());
+    }
+    return options;
+  }, [category]);
+
+  const subCategoryOptions = useMemo(() => {
+    const baseOptions: string[] = COMPLAINT_SUBCATEGORIES[category.trim()] ?? [];
+    if (subCategory.trim() && !baseOptions.includes(subCategory.trim())) {
+      return [subCategory.trim(), ...baseOptions];
+    }
+    return baseOptions;
+  }, [category, subCategory]);
+
+  useEffect(() => {
+    if (!subCategory.trim()) {
+      return;
+    }
+    if (subCategoryOptions.includes(subCategory.trim())) {
+      return;
+    }
+    setSubCategory("");
+  }, [category, subCategory, subCategoryOptions]);
 
   useEffect(() => {
     let isActive = true;
@@ -518,24 +675,85 @@ export default function ComplaintManagementScreen() {
           <Text style={styles.sectionTitle}>Complaint Details</Text>
 
           <Text style={styles.label}>Category</Text>
-          <TextInput
-            style={styles.input}
-            value={category}
-            onChangeText={setCategory}
-            placeholder="Category"
-            placeholderTextColor="#757682"
-            editable={canEditComplaintDetails}
-          />
+          <TouchableOpacity
+            style={[styles.select, !canEditComplaintDetails && styles.selectDisabled]}
+            onPress={() => {
+              if (!canEditComplaintDetails) {
+                return;
+              }
+              setShowSubCategoryDropdown(false);
+              setShowCategoryDropdown(prev => !prev);
+            }}
+            disabled={!canEditComplaintDetails}
+          >
+            <Text style={styles.selectText}>
+              {category || "Select category"}
+            </Text>
+            <MaterialIcons name="expand-more" size={20} color="#757682" />
+          </TouchableOpacity>
+          {showCategoryDropdown ? (
+            <View style={styles.dropdownMenu}>
+              {categoryOptions.map(option => (
+                <TouchableOpacity
+                  key={option}
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setCategory(option);
+                    setSubCategory("");
+                    setShowCategoryDropdown(false);
+                    setShowSubCategoryDropdown(false);
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>{option}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
 
           <Text style={styles.label}>Sub-category</Text>
-          <TextInput
-            style={styles.input}
-            value={subCategory}
-            onChangeText={setSubCategory}
-            placeholder="Sub-category"
-            placeholderTextColor="#757682"
-            editable={canEditComplaintDetails}
-          />
+          <TouchableOpacity
+            style={[
+              styles.select,
+              (!canEditComplaintDetails || !category.trim()) && styles.selectDisabled,
+            ]}
+            onPress={() => {
+              if (!canEditComplaintDetails || !category.trim()) {
+                return;
+              }
+              setShowCategoryDropdown(false);
+              setShowSubCategoryDropdown(prev => !prev);
+            }}
+            disabled={!canEditComplaintDetails || !category.trim()}
+          >
+            <Text style={styles.selectText}>
+              {subCategory || "Select sub-category"}
+            </Text>
+            <MaterialIcons name="expand-more" size={20} color="#757682" />
+          </TouchableOpacity>
+          {showSubCategoryDropdown ? (
+            <View style={styles.dropdownMenu}>
+              {subCategoryOptions.length ? (
+                subCategoryOptions.map(option => (
+                  <TouchableOpacity
+                    key={option}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setSubCategory(option);
+                      setShowSubCategoryDropdown(false);
+                    }}
+                  >
+                    <Text style={styles.dropdownItemText}>{option}</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.dropdownEmpty}>
+                  <Text style={styles.dropdownEmptyText}>
+                    Select a category first
+                  </Text>
+                </View>
+              )}
+            </View>
+          ) : null}
 
           <Text style={styles.label}>Description</Text>
           <TextInput
@@ -789,6 +1007,11 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: { color: "#121C28", fontSize: 13, fontWeight: "600" },
   dropdownItemSub: { color: "#757682", fontSize: 11, marginTop: 2 },
+  dropdownEmpty: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  dropdownEmptyText: { color: "#757682", fontSize: 12 },
   priorityRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   statusGrid: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   statusPill: {

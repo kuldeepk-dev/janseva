@@ -57,6 +57,8 @@ function Field({
   value,
   onChangeText,
   editable = true,
+  keyboardType = "default",
+  maxLength,
   onPress,
   onFocus,
   disabled = false,
@@ -67,6 +69,8 @@ function Field({
   value?: string;
   onChangeText?: (value: string) => void;
   editable?: boolean;
+  keyboardType?: "default" | "email-address" | "numeric" | "number-pad" | "phone-pad";
+  maxLength?: number;
   onPress?: () => void;
   onFocus?: () => void;
   disabled?: boolean;
@@ -106,6 +110,8 @@ function Field({
             onChangeText={onChangeText}
             editable={!disabled && editable}
             onFocus={onFocus}
+            keyboardType={keyboardType}
+            maxLength={maxLength}
           />
         )}
         {disabled ? (
@@ -136,8 +142,10 @@ const occupationOptions = [
 
 export default function RegisterVoterProfileScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; source?: string }>();
   const editMode = params.mode === "edit";
+  const isOperatorFlow = params.source === "operator";
+  const completionTarget = isOperatorFlow ? "/operator" : "/dashboard";
   const [step, setStep] = useState(1);
   const totalSteps = 4;
   const nextStep = () => setStep(prev => Math.min(prev + 1, totalSteps));
@@ -173,6 +181,8 @@ export default function RegisterVoterProfileScreen() {
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const sanitizeAlpha = (value: string) => value.replace(/[^A-Za-z\s]/g, "");
+  const normalizeMobileNumber = (value: string) =>
+    value.replace(/\D/g, "").slice(-10);
   const parseFamilySize = (value: string) => {
     const parsed = Number.parseInt(value || "1", 10);
     return Number.isNaN(parsed) ? 1 : Math.max(parsed, 1);
@@ -308,7 +318,7 @@ export default function RegisterVoterProfileScreen() {
           setDob(voter.dob ?? "");
           setBirthdayReminder(voter.dob ?? "");
           setAnniversary(voter.anniversary ?? "");
-          setMobile(voter.mobile ?? profile?.mobile ?? "");
+          setMobile(normalizeMobileNumber(voter.mobile ?? profile?.mobile ?? ""));
           setVoterId(voter.voter_id ?? "");
           setBoothNumber(voter.booth_number ?? "");
           setOccupation(voter.occupation ?? "");
@@ -333,7 +343,7 @@ export default function RegisterVoterProfileScreen() {
             ),
           );
         } else if (profile?.mobile) {
-          setMobile(profile.mobile);
+          setMobile(normalizeMobileNumber(profile.mobile));
         }
       } catch {
         if (!isActive) {
@@ -372,7 +382,7 @@ export default function RegisterVoterProfileScreen() {
     if (apiConfigError) {
       setError(apiConfigError);
       Alert.alert("Registration", "Profile saved locally.");
-      router.push("/dashboard" as never);
+      router.replace(completionTarget as never);
       return;
     }
     const nameRegex = /^[A-Za-z\s]+$/;
@@ -459,7 +469,7 @@ export default function RegisterVoterProfileScreen() {
         });
         Alert.alert("Registration", "Profile saved successfully.");
       }
-      router.push("/dashboard" as never);
+      router.replace(completionTarget as never);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : editMode ? "Update failed." : "Registration failed.";
@@ -608,7 +618,7 @@ export default function RegisterVoterProfileScreen() {
               if (router.canGoBack()) {
                 router.back();
               } else {
-                router.replace("/dashboard" as never);
+                router.replace(completionTarget as never);
               }
             }}
           >
@@ -644,12 +654,18 @@ export default function RegisterVoterProfileScreen() {
             nestedScrollEnabled
           >
             <Text style={styles.title}>
-              {editMode ? "Edit Citizen Profile" : "Voter Registration"}
+              {editMode
+                ? "Edit Citizen Profile"
+                : isOperatorFlow
+                  ? "Operator Enrollment"
+                  : "Voter Registration"}
             </Text>
             <Text style={styles.subtitle}>
               {editMode
                 ? "Review your saved details and update profile information."
-                : "Complete the form below to register a new constituent."}
+                : isOperatorFlow
+                  ? "Complete the form below to register a new voter on behalf of a constituent."
+                  : "Complete the form below to register a new constituent."}
             </Text>
             <Text style={styles.stepText}>
               {editMode ? "Saved details loaded below" : `Step ${step} of ${totalSteps}`}
@@ -749,9 +765,13 @@ export default function RegisterVoterProfileScreen() {
                       label="Mobile Number"
                       placeholder="+91"
                       value={mobile}
-                      onChangeText={setMobile}
-                      editable={false}
-                      disabled={editMode}
+                      onChangeText={value =>
+                        setMobile(normalizeMobileNumber(value))
+                      }
+                      editable={isOperatorFlow}
+                      disabled={editMode || !isOperatorFlow}
+                      keyboardType="number-pad"
+                      maxLength={10}
                     />
                   </View>
                 </View>

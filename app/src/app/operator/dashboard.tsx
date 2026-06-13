@@ -395,7 +395,7 @@ export default function OperatorDashboardScreen() {
             ))}
           </View>
         )}
-<ActionCard
+        <ActionCard
           icon="person-add"
           iconColor="#00714D"
           iconBg="#6CF8BB"
@@ -403,7 +403,14 @@ export default function OperatorDashboardScreen() {
           body="Initiate official enrollment for new constituents. Requires Aadhaar and Proof of Residence."
           ctaLabel="New Enrollment"
           ctaIcon="arrow-forward"
-          onPress={() => router.push("/register" as never)}
+          onPress={() =>
+            router.push(
+              {
+                pathname: "/register",
+                params: { source: "operator" },
+              } as never,
+            )
+          }
         />
 
         <ActionCard

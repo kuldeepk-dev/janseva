@@ -6,7 +6,15 @@ function registerVoterRoutes(app, db) {
   app.post("/voters", requireAuth, async (req, res) => {
     const payload = req.body || {};
     const now = new Date().toISOString();
-    const voter = { ...payload, profile_id: payload.profile_id ?? req.user.id, created_by: payload.created_by ?? req.user.id, created_at: now, updated_at: now };
+    const voter = {
+      ...payload,
+      profile_id: payload.profile_id ?? req.user.id,
+      created_by: req.user.id,
+      created_by_user_id: req.user.id,
+      created_by_role: req.user.role === "operator" ? "operator" : req.user.role,
+      created_at: now,
+      updated_at: now,
+    };
     const result = await db.collection("voters").insertOne(voter);
     const created = await db.collection("voters").findOne({ _id: result.insertedId });
     return res.json(toPublicDoc(created));
