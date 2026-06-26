@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  FlatList,
   Image,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -22,34 +22,78 @@ export function PostImageCarousel({
   aspectRatio = 1.5,
   style,
 }: PostImageCarouselProps) {
+  const listRef = useRef<FlatList<string> | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
   const visibleImages = imageUrls.filter(Boolean).slice(0, MAX_VISIBLE_IMAGES);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [visibleImages.length]);
+
+  useEffect(() => {
+    if (visibleImages.length <= 1 || !containerWidth) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setActiveIndex(current => {
+        const nextIndex = (current + 1) % visibleImages.length;
+        listRef.current?.scrollToIndex({
+          index: nextIndex,
+          animated: true,
+        });
+        return nextIndex;
+      });
+    }, 3500);
+
+    return () => clearInterval(timer);
+  }, [containerWidth, visibleImages.length]);
 
   if (!visibleImages.length) {
     return null;
   }
 
   return (
-    <View style={[styles.container, { aspectRatio }, style]}>
-      <ScrollView
+    <View
+      style={[styles.container, { aspectRatio }, style]}
+      onLayout={event => {
+        const width = Math.round(event.nativeEvent.layout.width);
+        if (width > 0 && width !== containerWidth) {
+          setContainerWidth(width);
+        }
+      }}
+    >
+      <FlatList
+        ref={listRef}
+        data={visibleImages}
+        style={styles.list}
         horizontal
         pagingEnabled
+        nestedScrollEnabled
+        directionalLockEnabled
         showsHorizontalScrollIndicator={false}
-        decelerationRate="fast"
+        keyExtractor={(uri, index) => `${uri}-${index}`}
         onMomentumScrollEnd={event => {
           const width = Math.max(1, event.nativeEvent.layoutMeasurement.width);
           const nextIndex = Math.round(event.nativeEvent.contentOffset.x / width);
           setActiveIndex(nextIndex);
         }}
-      >
-        {visibleImages.map((uri, index) => {
-          return (
-            <View key={`${uri}-${index}`} style={styles.slide}>
-              <Image source={{ uri }} style={styles.image} resizeMode="cover" />
-            </View>
-          );
+        getItemLayout={(_, index) => ({
+          length: containerWidth || 1,
+          offset: (containerWidth || 1) * index,
+          index,
         })}
-      </ScrollView>
+        renderItem={({ item }) => (
+          <View style={[styles.slide, { width: containerWidth || "100%" }]}>
+            <Image source={{ uri: item }} style={styles.image} resizeMode="cover" />
+          </View>
+        )}
+        initialScrollIndex={0}
+        onScrollToIndexFailed={() => {
+          // The list will retry once the container width is measured and layout stabilizes.
+        }}
+      />
 
       {visibleImages.length > 1 ? (
         <View style={styles.counter}>
@@ -80,8 +124,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8EDF7",
     position: "relative",
   },
+  list: {
+    flex: 1,
+  },
   slide: {
-    width: "100%",
     height: "100%",
     position: "relative",
   },

@@ -5,8 +5,10 @@ import { useAuth } from "../../context/AuthContext";
 import { apiConfigError } from "../../lib/api";
 import {
   getActivityLogs,
+  getOperatorDirectory,
   getOperatorStats,
   type ActivityLog,
+  type OperatorDirectoryItem,
   type OperatorStats,
 } from "../../services/operatorService";
 import {
@@ -16,7 +18,9 @@ import {
   type Complaint,
 } from "../../services/complaintService";
 import {
+  ActivityIndicator,
   Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -176,6 +180,56 @@ function formatDayLabel(date: Date) {
   return date.toLocaleDateString("en-US", { weekday: "short" });
 }
 
+function formatDateLabel(value: string | null) {
+  if (!value) {
+    return "Not available";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Not available";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatDateTimeLabel(value: string | null) {
+  if (!value) {
+    return "No recent activity";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "No recent activity";
+  }
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getInitials(value: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return "OP";
+  }
+
+  return trimmed
+    .split(/\s+/)
+    .map(part => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
 export default function LeadershipDashboardScreen() {
   const router = useRouter();
   const { logout } = useAuth();
@@ -186,6 +240,10 @@ export default function LeadershipDashboardScreen() {
   const [criticalQueue, setCriticalQueue] = useState<Complaint[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [operatorError, setOperatorError] = useState<string | null>(null);
+  const [operatorDirectory, setOperatorDirectory] = useState<OperatorDirectoryItem[]>([]);
+  const [operatorDirectoryError, setOperatorDirectoryError] = useState<string | null>(null);
+  const [operatorDirectoryOpen, setOperatorDirectoryOpen] = useState(false);
+  const [operatorDirectoryLoading, setOperatorDirectoryLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -253,6 +311,41 @@ export default function LeadershipDashboardScreen() {
       isActive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!operatorDirectoryOpen) {
+      return;
+    }
+
+    let isActive = true;
+    const loadOperatorDirectory = async () => {
+      setOperatorDirectoryLoading(true);
+      setOperatorDirectoryError(null);
+      try {
+        const items = await getOperatorDirectory();
+        if (!isActive) {
+          return;
+        }
+        setOperatorDirectory(items);
+      } catch (dirErr) {
+        if (!isActive) {
+          return;
+        }
+        const message =
+          dirErr instanceof Error ? dirErr.message : "Failed to load operators.";
+        setOperatorDirectoryError(message);
+      } finally {
+        if (isActive) {
+          setOperatorDirectoryLoading(false);
+        }
+      }
+    };
+
+    void loadOperatorDirectory();
+    return () => {
+      isActive = false;
+    };
+  }, [operatorDirectoryOpen]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -440,7 +533,9 @@ export default function LeadershipDashboardScreen() {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.seal} />
-          <Text style={styles.brand}>Swaraj Portal</Text>
+          <Text style={styles.brand} numberOfLines={1} ellipsizeMode="tail">
+            Swaraj Portal
+          </Text>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity
@@ -452,9 +547,14 @@ export default function LeadershipDashboardScreen() {
             <MaterialIcons name="language" size={18} color="#00236F" />
             <Text style={styles.langText}>English</Text>
           </TouchableOpacity>
-          <View style={styles.adminAvatar}>
+          <TouchableOpacity
+            style={styles.adminAvatar}
+            onPress={() => setOperatorDirectoryOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="View operators"
+          >
             <MaterialIcons name="badge" size={18} color="#444651" />
-          </View>
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => {
               logout();
@@ -779,6 +879,136 @@ export default function LeadershipDashboardScreen() {
         </View>
       </ScrollView>
 
+      <Modal
+        visible={operatorDirectoryOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOperatorDirectoryOpen(false)}
+      >
+        <View style={styles.operatorModalBackdrop}>
+          <View style={styles.operatorModal}>
+            <View style={styles.operatorModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.operatorModalTitle}>Operator Directory</Text>
+                <Text style={styles.operatorModalSub}>
+                  All operator accounts currently registered in the portal.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.operatorModalClose}
+                onPress={() => setOperatorDirectoryOpen(false)}
+              >
+                <MaterialIcons name="close" size={18} color="#444651" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.operatorModalList}
+              contentContainerStyle={styles.operatorModalListContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {operatorDirectoryLoading ? (
+                <View style={styles.operatorModalLoading}>
+                  <ActivityIndicator size="small" color="#00236F" />
+                  <Text style={styles.operatorModalLoadingText}>
+                    Loading operator directory...
+                  </Text>
+                </View>
+              ) : operatorDirectoryError ? (
+                <Text style={styles.operatorModalError}>
+                  {operatorDirectoryError}
+                </Text>
+              ) : operatorDirectory.length ? (
+                operatorDirectory.map(item => (
+                  <View key={item.id} style={styles.operatorCard}>
+                    <View style={styles.operatorCardTop}>
+                      <View style={styles.operatorIdentityRow}>
+                        <View style={styles.operatorAvatar}>
+                          <Text style={styles.operatorAvatarText}>
+                            {getInitials(item.full_name ?? item.email)}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.operatorName}>
+                            {item.full_name ?? "Unnamed Operator"}
+                          </Text>
+                          <View style={styles.operatorBadgeRow}>
+                            <View style={styles.operatorRoleBadge}>
+                              <Text style={styles.operatorRoleBadgeText}>
+                                Operator
+                              </Text>
+                            </View>
+                            <Text style={styles.operatorTinyMeta}>
+                              ID {item.profile_id ?? "N/A"}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+
+                    <Text style={styles.operatorMetaText}>
+                      Email: {item.email ?? "Not available"}
+                    </Text>
+                    <Text style={styles.operatorMetaText}>
+                      Mobile: {item.mobile ?? "Not available"}
+                    </Text>
+                    <Text style={styles.operatorMetaText}>
+                      Language: {item.preferred_language || "en"}
+                    </Text>
+
+                    <View style={styles.operatorStatRow}>
+                      <View style={styles.operatorStatChip}>
+                        <Text style={styles.operatorStatValue}>
+                          {item.total_complaints_assigned}
+                        </Text>
+                        <Text style={styles.operatorStatLabel}>
+                          Assigned cases
+                        </Text>
+                      </View>
+                      <View style={styles.operatorStatChip}>
+                        <Text style={styles.operatorStatValue}>
+                          {item.pending_complaints}
+                        </Text>
+                        <Text style={styles.operatorStatLabel}>
+                          Pending cases
+                        </Text>
+                      </View>
+                      <View style={styles.operatorStatChip}>
+                        <Text style={styles.operatorStatValue}>
+                          {item.activity_count}
+                        </Text>
+                        <Text style={styles.operatorStatLabel}>
+                          Activity log entries
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.operatorFooterRow}>
+                      <Text style={styles.operatorFooterText}>
+                        Joined {formatDateLabel(item.created_at)}
+                      </Text>
+                      <Text style={styles.operatorFooterText}>
+                        Last activity {formatDateTimeLabel(item.last_activity_at)}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.operatorModalEmpty}>
+                  <MaterialIcons name="groups" size={24} color="#757682" />
+                  <Text style={styles.operatorModalEmptyTitle}>
+                    No operators found
+                  </Text>
+                  <Text style={styles.operatorModalEmptyText}>
+                    The portal does not currently have any operator accounts.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <TouchableOpacity
         style={styles.fab}
         onPress={() => router.push("/leader/post/new" as never)}
@@ -801,19 +1031,38 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 1,
+    minWidth: 0,
+  },
   seal: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#1E3A8A" },
-  brand: { color: "#00236F", fontSize: 22, fontWeight: "700" },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  brand: {
+    color: "#00236F",
+    fontSize: 19,
+    fontWeight: "700",
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 0,
+    marginLeft: 12,
+  },
   langBtn: {
     borderWidth: 1,
     borderColor: "#C5C5D3",
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    flexShrink: 1,
   },
   langText: { color: "#00236F", fontSize: 13, fontWeight: "600" },
   adminAvatar: {
@@ -823,6 +1072,178 @@ const styles = StyleSheet.create({
     backgroundColor: "#DFE9FA",
     alignItems: "center",
     justifyContent: "center",
+  },
+  operatorModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(18, 28, 40, 0.58)",
+    justifyContent: "center",
+    padding: 16,
+  },
+  operatorModal: {
+    maxHeight: "88%",
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#D7DFEF",
+  },
+  operatorModalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  operatorModalTitle: {
+    color: "#121C28",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  operatorModalSub: { color: "#444651", fontSize: 12, marginTop: 3, lineHeight: 17 },
+  operatorModalClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#F3F6FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  operatorModalList: {
+    marginTop: 12,
+  },
+  operatorModalListContent: {
+    gap: 10,
+    paddingBottom: 6,
+  },
+  operatorModalLoading: {
+    paddingVertical: 28,
+    alignItems: "center",
+    gap: 10,
+  },
+  operatorModalLoadingText: {
+    color: "#444651",
+    fontSize: 13,
+  },
+  operatorModalError: {
+    color: "#BA1A1A",
+    fontSize: 13,
+    paddingVertical: 12,
+  },
+  operatorCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  operatorIdentityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  operatorAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#1E3A8A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  operatorAvatarText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  operatorName: {
+    color: "#121C28",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  operatorBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+    flexWrap: "wrap",
+  },
+  operatorRoleBadge: {
+    borderRadius: 999,
+    backgroundColor: "#DFE9FA",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  operatorRoleBadgeText: {
+    color: "#00236F",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  operatorTinyMeta: {
+    color: "#757682",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  operatorMetaText: {
+    color: "#444651",
+    fontSize: 12,
+    marginTop: 4,
+  },
+  operatorStatRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  operatorStatChip: {
+    minWidth: 92,
+    flexGrow: 1,
+    borderRadius: 12,
+    backgroundColor: "#F8F9FF",
+    borderWidth: 1,
+    borderColor: "#D7DFEF",
+    padding: 10,
+    gap: 2,
+  },
+  operatorStatValue: {
+    color: "#121C28",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  operatorStatLabel: {
+    color: "#444651",
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  operatorFooterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  operatorFooterText: {
+    color: "#757682",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  operatorModalEmpty: {
+    paddingVertical: 28,
+    alignItems: "center",
+    gap: 8,
+  },
+  operatorModalEmptyTitle: {
+    color: "#121C28",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  operatorModalEmptyText: {
+    color: "#757682",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 17,
   },
   content: { padding: 16, gap: 12, paddingBottom: 108 },
   title: { color: "#121C28", fontSize: 30, fontWeight: "700" },
