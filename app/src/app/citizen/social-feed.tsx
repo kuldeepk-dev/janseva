@@ -1,4 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { apiConfigError } from "../../lib/api";
@@ -65,7 +66,10 @@ function FeedCard({
 
 export default function SocialFeedScreen() {
   const router = useRouter();
-  const { role } = useLocalSearchParams<{ role?: string }>();
+  const { role, postId } = useLocalSearchParams<{
+    role?: string;
+    postId?: string;
+  }>();
   const { userRole } = useAuth();
   const [activeFilter, setActiveFilter] = useState("All");
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +82,7 @@ export default function SocialFeedScreen() {
       imageUrls: string[];
       tagTone: "green" | "blue";
       time: string;
-      }>
+    }>
   >([]);
   const isPublicFeed = role === "public";
   const isBoothWorker = userRole === "booth_worker";
@@ -143,21 +147,40 @@ export default function SocialFeedScreen() {
     };
   }, []);
 
-  const visiblePosts = posts.filter(
-    post => activeFilter === "All" || post.tag === activeFilter,
-  );
+  const visiblePosts = useMemo(() => {
+    const filtered = posts.filter(
+      post => activeFilter === "All" || post.tag === activeFilter,
+    );
 
-  const performNativeShare = async (title: string) => {
+    if (!postId) {
+      return filtered;
+    }
+
+    return [...filtered].sort((left, right) => {
+      if (left.id === postId) return -1;
+      if (right.id === postId) return 1;
+      return 0;
+    });
+  }, [activeFilter, postId, posts]);
+
+  const buildPostShareUrl = (id: string) =>
+    Linking.createURL("/feed", {
+      queryParams: { postId: id },
+    });
+
+  const performNativeShare = async (postId: string, title: string) => {
     const trimmedTitle = title.trim();
+    const shareUrl = buildPostShareUrl(postId);
     const message = trimmedTitle
-      ? `${trimmedTitle}\n\nShared from Jan Seva Portal`
-      : "Shared from Jan Seva Portal";
+      ? `${trimmedTitle}\n\nOpen this post in Jan Seva:\n${shareUrl}`
+      : `Open this post in Jan Seva:\n${shareUrl}`;
 
     try {
       await Share.share(
         {
           title: trimmedTitle || "Jan Seva Portal",
           message,
+          url: shareUrl,
         },
         Platform.OS === "android"
           ? { dialogTitle: trimmedTitle || "Share Post" }
@@ -171,7 +194,7 @@ export default function SocialFeedScreen() {
   };
 
   const handleShare = async (postId: string, title: string) => {
-    const didOpenShare = await performNativeShare(title);
+    const didOpenShare = await performNativeShare(postId, title);
     if (!didOpenShare) {
       return;
     }
@@ -246,16 +269,28 @@ export default function SocialFeedScreen() {
         </View>
 
         {visiblePosts.map(post => (
-          <FeedCard
+          <View
             key={post.id}
-            title={post.title}
-            desc={post.desc}
-            tag={post.tag.toUpperCase()}
-            imageUrls={post.imageUrls}
-            tagTone={post.tagTone}
-            time={post.time}
-            onShare={() => void handleShare(post.id, post.title)}
-          />
+            style={[
+              styles.postWrap,
+              postId === post.id && styles.postWrapHighlighted,
+            ]}
+          >
+            {postId === post.id ? (
+              <View style={styles.linkedPostBadge}>
+                <Text style={styles.linkedPostBadgeText}>Shared Post</Text>
+              </View>
+            ) : null}
+            <FeedCard
+              title={post.title}
+              desc={post.desc}
+              tag={post.tag.toUpperCase()}
+              imageUrls={post.imageUrls}
+              tagTone={post.tagTone}
+              time={post.time}
+              onShare={() => void handleShare(post.id, post.title)}
+            />
+          </View>
         ))}
 
         {!visiblePosts.length ? (
@@ -310,6 +345,25 @@ const styles = StyleSheet.create({
   filterActive: { backgroundColor: "#00236F", borderColor: "#00236F" },
   filterText: { color: "#444651", fontSize: 12, fontWeight: "600" },
   filterActiveText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  postWrap: { gap: 6 },
+  postWrapHighlighted: {
+    borderRadius: 16,
+    backgroundColor: "#EEF4FF",
+    padding: 6,
+  },
+  linkedPostBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    backgroundColor: "#00236F",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginLeft: 4,
+  },
+  linkedPostBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
   card: {
     marginTop: 2,
     backgroundColor: "#FFFFFF",
