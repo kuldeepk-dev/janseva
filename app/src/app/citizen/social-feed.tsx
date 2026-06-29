@@ -1,11 +1,16 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiConfigError } from "../../lib/api";
-import { getPublishedPosts } from "../../services/socialPostService";
+import { useAuth } from "../../context/AuthContext";
+import {
+  getPublishedPosts,
+  trackPostShare,
+} from "../../services/socialPostService";
 import { PostImageCarousel } from "../../components/PostImageCarousel";
 import {
   Alert,
+  Platform,
   ScrollView,
   Share,
   StyleSheet,
@@ -61,6 +66,7 @@ function FeedCard({
 export default function SocialFeedScreen() {
   const router = useRouter();
   const { role } = useLocalSearchParams<{ role?: string }>();
+  const { userRole } = useAuth();
   const [activeFilter, setActiveFilter] = useState("All");
   const [error, setError] = useState<string | null>(null);
   const [posts, setPosts] = useState<
@@ -72,9 +78,28 @@ export default function SocialFeedScreen() {
       imageUrls: string[];
       tagTone: "green" | "blue";
       time: string;
-    }>
+      }>
   >([]);
-  const backTarget = role === "public" ? "/login" : "/dashboard";
+  const isPublicFeed = role === "public";
+  const isBoothWorker = userRole === "booth_worker";
+  const backTarget = useMemo(() => {
+    if (isPublicFeed) {
+      return "/login";
+    }
+    if (userRole === "booth_worker") {
+      return "/booth-worker";
+    }
+    if (userRole === "leader") {
+      return "/leader";
+    }
+    if (userRole === "admin") {
+      return "/admin/settings";
+    }
+    if (userRole === "operator") {
+      return "/operator";
+    }
+    return "/dashboard";
+  }, [isPublicFeed, userRole]);
 
   useEffect(() => {
     let isActive = true;
@@ -122,11 +147,41 @@ export default function SocialFeedScreen() {
     post => activeFilter === "All" || post.tag === activeFilter,
   );
 
-  const handleShare = async (title: string) => {
+  const performNativeShare = async (title: string) => {
+    const trimmedTitle = title.trim();
+    const message = trimmedTitle
+      ? `${trimmedTitle}\n\nShared from Jan Seva Portal`
+      : "Shared from Jan Seva Portal";
+
     try {
-      await Share.share({ message: `${title} - Jan Seva Portal` });
+      await Share.share(
+        {
+          title: trimmedTitle || "Jan Seva Portal",
+          message,
+        },
+        Platform.OS === "android"
+          ? { dialogTitle: trimmedTitle || "Share Post" }
+          : undefined,
+      );
+      return true;
     } catch {
       Alert.alert("Share", "Sharing is not available on this device.");
+      return false;
+    }
+  };
+
+  const handleShare = async (postId: string, title: string) => {
+    const didOpenShare = await performNativeShare(title);
+    if (!didOpenShare) {
+      return;
+    }
+
+    if (isBoothWorker) {
+      try {
+        await trackPostShare(postId, "Direct Share");
+      } catch {
+        // Do not block the real device share flow if tracking fails.
+      }
     }
   };
 
@@ -199,7 +254,7 @@ export default function SocialFeedScreen() {
             imageUrls={post.imageUrls}
             tagTone={post.tagTone}
             time={post.time}
-            onShare={() => handleShare(post.title)}
+            onShare={() => void handleShare(post.id, post.title)}
           />
         ))}
 

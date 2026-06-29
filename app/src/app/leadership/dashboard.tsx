@@ -626,6 +626,14 @@ export default function LeadershipDashboardScreen() {
           <Text style={styles.exportText}>Export Report</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.shareTrackerBtn}
+          onPress={() => router.push("/leadership/share-tracker" as never)}
+        >
+          <MaterialIcons name="forward-to-inbox" size={18} color="#00236F" />
+          <Text style={styles.shareTrackerText}>Open Post Share Tracker</Text>
+        </TouchableOpacity>
+
         <View style={styles.chartCard}>
           <Text style={styles.sectionTitle}>30-Day Complaint Trends</Text>
           <View style={styles.legendRow}>
@@ -1263,6 +1271,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   exportText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  shareTrackerBtn: {
+    marginTop: -2,
+    borderWidth: 1,
+    borderColor: "#C5D3EE",
+    borderRadius: 14,
+    backgroundColor: "#EEF4FF",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  shareTrackerText: { color: "#00236F", fontSize: 14, fontWeight: "700" },
   metricCard: {
     width: "48%",
     borderWidth: 1,

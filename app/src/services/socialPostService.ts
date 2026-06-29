@@ -17,6 +17,17 @@ export type SocialPost = {
 };
 
 export type SocialPostInsert = Partial<SocialPost>;
+export type SocialPostShareTrackingRow = {
+  id: string;
+  post_id: string | null;
+  post_title: string;
+  booth_worker_profile_id: string | null;
+  booth_worker_name: string;
+  booth_area: string;
+  platform: string | null;
+  share_count: number;
+  updated_at: string | null;
+};
 
 export async function getPublishedPosts() {
   return apiFetch<SocialPost[]>("/social-posts/published");
@@ -37,4 +48,20 @@ export async function publishPost(id: string) {
 
 export async function getPendingPosts() {
   return apiFetch<SocialPost[]>("/social-posts/pending");
+}
+
+export async function trackPostShare(id: string, platform: string) {
+  return apiFetch<{ id: string; share_count: number }>(
+    `/social-posts/${id}/share-track`,
+    {
+      method: "POST",
+      body: JSON.stringify({ platform }),
+    },
+  );
+}
+
+export async function getShareTrackingReport() {
+  return apiFetch<SocialPostShareTrackingRow[]>(
+    "/social-posts/share-tracking/report",
+  );
 }

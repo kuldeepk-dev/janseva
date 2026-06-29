@@ -188,6 +188,7 @@ export default function CreatePostScreen() {
   const router = useRouter();
   const { draft } = useLocalSearchParams<{ draft?: string }>();
   const isOperatorDraft = draft === "operator";
+  const isBoothWorkerDraft = draft === "booth-worker";
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(categories[0]);
   const [content, setContent] = useState("");
@@ -200,8 +201,16 @@ export default function CreatePostScreen() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [recentPosts, setRecentPosts] = useState<PostHistoryItem[]>([]);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
-  const backTarget = draft === "operator" ? "/operator" : "/leader";
-  const roleLabel = isOperatorDraft ? "Operator Draft" : "Leadership Draft";
+  const backTarget = isOperatorDraft
+    ? "/operator"
+    : isBoothWorkerDraft
+      ? "/booth-worker/posts"
+      : "/leader";
+  const roleLabel = isOperatorDraft
+    ? "Operator Draft"
+    : isBoothWorkerDraft
+      ? "Booth Worker Draft"
+      : "Leadership Draft";
   const contentLength = content.length;
   const updatedLabel = "Live preview";
 
@@ -314,7 +323,7 @@ export default function CreatePostScreen() {
         await publishPost(draftPost.id);
         Alert.alert("Post", "Published successfully.");
         await refreshHistory();
-        router.push("/feed" as never);
+        router.push((isBoothWorkerDraft ? backTarget : "/feed") as never);
         return;
       }
 
@@ -535,7 +544,7 @@ export default function CreatePostScreen() {
             <View>
               <Text style={styles.historyTitle}>Recent Posts</Text>
               <Text style={styles.historySubtitle}>
-                Published and pending posts the operator can review.
+                Published and pending posts available in this draft workspace.
               </Text>
             </View>
             <TouchableOpacity

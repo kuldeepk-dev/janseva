@@ -11,7 +11,7 @@ import {
   verifyOtp,
 } from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
-import { ROLE_HOME } from "../../constants/permissions";
+import { ROLE_HOME, type Role } from "../../constants/permissions";
 import {
   Alert,
   Image,
@@ -28,7 +28,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type Role = "citizen" | "operator" | "leader" | "admin";
 const DEMO_CITIZEN_MOBILE = "9999999999";
 const DEMO_CITIZEN_OTP = "123456";
 const DEMO_ROLE_CREDENTIALS: Record<
@@ -36,6 +35,10 @@ const DEMO_ROLE_CREDENTIALS: Record<
   { email: string; password: string }
 > = {
   operator: { email: "operator@janseva.local", password: "Demo@12345" },
+  booth_worker: {
+    email: "boothworker@janseva.local",
+    password: "Demo@12345",
+  },
   leader: { email: "leader@janseva.local", password: "Demo@12345" },
   admin: { email: "admin@janseva.local", password: "Demo@12345" },
 };
@@ -61,6 +64,8 @@ export default function LoginScreen() {
     switch (role) {
       case "operator":
         return "Operator";
+      case "booth_worker":
+        return "Booth Worker";
       case "leader":
         return "Leadership";
       case "admin":
@@ -170,87 +175,28 @@ export default function LoginScreen() {
       }
       return;
     }
-    if (role === "operator") {
-      if (apiConfigError) {
-        setError(apiConfigError);
-        login("operator");
-        router.replace("/operator" as never);
-        return;
-      }
-      if (!staffEmail.trim() || !staffPassword) {
-        setError("Enter staff email and password.");
-        return;
-      }
-      setIsLoading(true);
-      try {
-        const result = await signInStaff(staffEmail.trim(), staffPassword);
-        const resolvedRole = toAppRole(result.profile?.role ?? role);
-        login(resolvedRole);
-        router.replace(
-          (resolvedRole === "admin" ? "/admin/settings" : "/operator") as never,
-        );
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Staff login failed.";
-        setError(message);
-      } finally {
-        setIsLoading(false);
-      }
+    if (apiConfigError) {
+      setError(apiConfigError);
+      login(role);
+      router.replace(ROLE_HOME[role] as never);
       return;
     }
-    if (role === "leader") {
-      if (apiConfigError) {
-        setError(apiConfigError);
-        login("leader");
-        router.replace("/leader" as never);
-        return;
-      }
-      if (!staffEmail.trim() || !staffPassword) {
-        setError("Enter staff email and password.");
-        return;
-      }
-      setIsLoading(true);
-      try {
-        const result = await signInStaff(staffEmail.trim(), staffPassword);
-        const resolvedRole = toAppRole(result.profile?.role ?? role);
-        login(resolvedRole);
-        router.replace(
-          (resolvedRole === "admin" ? "/admin/settings" : "/leader") as never,
-        );
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Staff login failed.";
-        setError(message);
-      } finally {
-        setIsLoading(false);
-      }
+    if (!staffEmail.trim() || !staffPassword) {
+      setError("Enter staff email and password.");
       return;
     }
-    if (role === "admin") {
-      if (apiConfigError) {
-        setError(apiConfigError);
-        login("admin");
-        router.replace("/admin" as never);
-        return;
-      }
-      if (!staffEmail.trim() || !staffPassword) {
-        setError("Enter staff email and password.");
-        return;
-      }
-      setIsLoading(true);
-      try {
-        const result = await signInStaff(staffEmail.trim(), staffPassword);
-        const resolvedRole = toAppRole(result.profile?.role ?? role);
-        login(resolvedRole);
-        router.replace("/admin" as never);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Staff login failed.";
-        setError(message);
-      } finally {
-        setIsLoading(false);
-      }
-      return;
+    setIsLoading(true);
+    try {
+      const result = await signInStaff(staffEmail.trim(), staffPassword);
+      const resolvedRole = toAppRole(result.profile?.role ?? role);
+      login(resolvedRole);
+      router.replace(ROLE_HOME[resolvedRole] as never);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Staff login failed.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -418,6 +364,7 @@ export default function LoginScreen() {
                   [
                     "citizen",
                     "operator",
+                    "booth_worker",
                     "leader",
                     "admin",
                   ] as Role[]
@@ -437,7 +384,9 @@ export default function LoginScreen() {
                       >
                         {item === "leader"
                           ? "Leadership"
-                          : item.charAt(0).toUpperCase() + item.slice(1)}
+                          : item === "booth_worker"
+                            ? "Booth Worker"
+                            : item.charAt(0).toUpperCase() + item.slice(1)}
                       </Text>
                     </TouchableOpacity>
                   );

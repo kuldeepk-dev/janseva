@@ -2,10 +2,11 @@ import { apiFetch, clearAuthToken, setAuthToken } from "../lib/api";
 
 export type Profile = {
   id: string;
-  role: "citizen" | "operator" | "leader" | "admin";
+  role: "citizen" | "operator" | "booth_worker" | "leader" | "admin";
   full_name: string | null;
   mobile: string | null;
   email: string | null;
+  assigned_booth_number?: string | null;
   preferred_language: string;
   created_at: string;
   updated_at: string;
@@ -18,7 +19,13 @@ export type CitizenDirectoryItem = {
   voter_id: string | null;
   mobile: string | null;
   booth_number: string | null;
-  created_by_role: "citizen" | "operator" | "leader" | "admin" | null;
+  created_by_role:
+    | "citizen"
+    | "operator"
+    | "booth_worker"
+    | "leader"
+    | "admin"
+    | null;
 };
 
 function normalizePhone(mobile: string) {

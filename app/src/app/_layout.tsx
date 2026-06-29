@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "../context/AuthContext";
 import { CitizenBottomLayout } from "../components/CitizenBottomLayout";
 import { OperatorBottomLayout } from "../components/OperatorBottomLayout";
 import { AdminBottomLayout } from "../components/AdminBottomLayout";
+import { BoothWorkerBottomLayout } from "../components/BoothWorkerBottomLayout";
 import { LeadershipBottomNav } from "../components/LeadershipBottomNav";
 import {
   canAccessRoute,
@@ -67,6 +68,22 @@ function getAdminTab(pathname: string) {
   return null;
 }
 
+function getBoothWorkerTab(pathname: string) {
+  if (pathname === "/booth-worker" || pathname === "/booth-worker/dashboard") {
+    return "home";
+  }
+  if (pathname === "/booth-worker/voters") {
+    return "voters";
+  }
+  if (pathname === "/booth-worker/posts") {
+    return "posts";
+  }
+  if (pathname === "/booth-worker/profile") {
+    return "profile";
+  }
+  return null;
+}
+
 function getLeaderTab(pathname: string) {
   if (pathname === "/leader" || pathname === "/leader/index") {
     return "dashboard";
@@ -74,7 +91,8 @@ function getLeaderTab(pathname: string) {
   if (
     pathname === "/feed" ||
     pathname === "/citizen/social-feed" ||
-    pathname === "/leadership/social-feed"
+    pathname === "/leadership/social-feed" ||
+    pathname === "/leadership/share-tracker"
   ) {
     return "social";
   }
@@ -100,6 +118,8 @@ function RouteGuard() {
   const activeTab = userRole === "citizen" ? getCitizenTab(pathname) : null;
   const activeOperatorTab =
     userRole === "operator" ? getOperatorTab(pathname) : null;
+  const activeBoothWorkerTab =
+    userRole === "booth_worker" ? getBoothWorkerTab(pathname) : null;
   const activeAdminTab = userRole === "admin" ? getAdminTab(pathname) : null;
   const activeLeaderTab = userRole === "leader" ? getLeaderTab(pathname) : null;
   const publicRoute = isPublicRoute(pathname);
@@ -154,6 +174,16 @@ function RouteGuard() {
       activeOperatorTab ? (
         <OperatorBottomLayout
           activeTab={activeOperatorTab as "home" | "assign" | "profile"}
+        />
+      ) : null}
+      {isHydrated &&
+      isLoggedIn &&
+      userRole === "booth_worker" &&
+      activeBoothWorkerTab ? (
+        <BoothWorkerBottomLayout
+          activeTab={
+            activeBoothWorkerTab as "home" | "voters" | "posts" | "profile"
+          }
         />
       ) : null}
       {isHydrated && isLoggedIn && userRole === "admin" && activeAdminTab ? (

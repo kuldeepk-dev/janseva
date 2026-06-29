@@ -145,7 +145,13 @@ export default function RegisterVoterProfileScreen() {
   const params = useLocalSearchParams<{ mode?: string; source?: string }>();
   const editMode = params.mode === "edit";
   const isOperatorFlow = params.source === "operator";
-  const completionTarget = isOperatorFlow ? "/operator" : "/dashboard";
+  const isBoothWorkerFlow = params.source === "booth-worker";
+  const isStaffRegistrationFlow = isOperatorFlow || isBoothWorkerFlow;
+  const completionTarget = isOperatorFlow
+    ? "/operator"
+    : isBoothWorkerFlow
+      ? "/booth-worker"
+      : "/dashboard";
   const [step, setStep] = useState(1);
   const totalSteps = 4;
   const nextStep = () => setStep(prev => Math.min(prev + 1, totalSteps));
@@ -161,6 +167,7 @@ export default function RegisterVoterProfileScreen() {
   const [occupation, setOccupation] = useState("");
   const [village, setVillage] = useState("");
   const [panchayat, setPanchayat] = useState("");
+  const [assignedBoothNumber, setAssignedBoothNumber] = useState("");
   const [voterRecordId, setVoterRecordId] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -311,6 +318,9 @@ export default function RegisterVoterProfileScreen() {
         if (!isActive) {
           return;
         }
+        if (profile?.assigned_booth_number) {
+          setAssignedBoothNumber(profile.assigned_booth_number);
+        }
         if (voter) {
           setVoterRecordId(voter.id ?? null);
           setFullName(voter.full_name ?? "");
@@ -342,8 +352,13 @@ export default function RegisterVoterProfileScreen() {
                 loadedMembers.filter(member => member.gender === "female").length,
             ),
           );
-        } else if (profile?.mobile) {
-          setMobile(normalizeMobileNumber(profile.mobile));
+        } else {
+          if (profile?.mobile) {
+            setMobile(normalizeMobileNumber(profile.mobile));
+          }
+          if (isBoothWorkerFlow && profile?.assigned_booth_number) {
+            setBoothNumber(profile.assigned_booth_number);
+          }
         }
       } catch {
         if (!isActive) {
@@ -456,7 +471,10 @@ export default function RegisterVoterProfileScreen() {
           dob: dob.trim() || null,
           mobile: mobile.trim() || null,
           voter_id: voterId.trim() || null,
-          booth_number: boothNumber.trim() || null,
+          booth_number:
+            (isBoothWorkerFlow
+              ? assignedBoothNumber.trim() || boothNumber.trim()
+              : boothNumber.trim()) || null,
           occupation: occupation.trim() || null,
           village: village.trim() || null,
           panchayat: panchayat.trim() || null,
@@ -658,6 +676,8 @@ export default function RegisterVoterProfileScreen() {
                 ? "Edit Citizen Profile"
                 : isOperatorFlow
                   ? "Operator Enrollment"
+                  : isBoothWorkerFlow
+                    ? "Booth Worker Enrollment"
                   : "Voter Registration"}
             </Text>
             <Text style={styles.subtitle}>
@@ -665,6 +685,8 @@ export default function RegisterVoterProfileScreen() {
                 ? "Review your saved details and update profile information."
                 : isOperatorFlow
                   ? "Complete the form below to register a new voter on behalf of a constituent."
+                  : isBoothWorkerFlow
+                    ? "Register a new voter for your assigned booth. Booth selection is locked to your booth."
                   : "Complete the form below to register a new constituent."}
             </Text>
             <Text style={styles.stepText}>
@@ -768,8 +790,8 @@ export default function RegisterVoterProfileScreen() {
                       onChangeText={value =>
                         setMobile(normalizeMobileNumber(value))
                       }
-                      editable={isOperatorFlow}
-                      disabled={editMode || !isOperatorFlow}
+                      editable={isStaffRegistrationFlow}
+                      disabled={editMode || !isStaffRegistrationFlow}
                       keyboardType="number-pad"
                       maxLength={10}
                     />
@@ -811,7 +833,7 @@ export default function RegisterVoterProfileScreen() {
                       value={boothNumber}
                       onChangeText={setBoothNumber}
                       onFocus={() => focusField("boothNumber")}
-                      disabled={editMode}
+                      disabled={editMode || isBoothWorkerFlow}
                     />
                   </View>
                   <View style={{ flex: 1 }}>

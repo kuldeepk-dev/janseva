@@ -159,6 +159,12 @@ async function seedDemoStaff(db, { DEMO_STAFF_SEED_ENABLED, DEMO_STAFF_PASSWORD 
 
   const demoAccounts = [
     { role: "operator", email: "operator@janseva.local", name: "Demo Operator" },
+    {
+      role: "booth_worker",
+      email: "boothworker@janseva.local",
+      name: "Demo Booth Worker",
+      assigned_booth_number: "12",
+    },
     { role: "leader", email: "leader@janseva.local", name: "Demo Leader" },
     { role: "admin", email: "admin@janseva.local", name: "Demo Admin" },
   ];
@@ -173,6 +179,7 @@ async function seedDemoStaff(db, { DEMO_STAFF_SEED_ENABLED, DEMO_STAFF_PASSWORD 
       mobile: null,
       email: account.email,
       preferred_language: "en",
+      assigned_booth_number: account.assigned_booth_number ?? null,
       total_complaints_assigned: 0,
       pending_complaints: 0,
       created_at: now,
