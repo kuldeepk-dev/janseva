@@ -1,4 +1,5 @@
 import { clearToken, getToken, setToken } from "./tokenStorage";
+import { normalizeMediaUrl } from "./mediaUrl";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
@@ -77,7 +78,15 @@ export async function apiUploadFile<T>(path: string, file: UploadFile) {
     throw new Error(message || `Upload failed (${response.status}).`);
   }
 
-  return response.json() as Promise<T>;
+  const data = (await response.json()) as T;
+  if (data && typeof data === "object" && "url" in (data as Record<string, unknown>)) {
+    const currentUrl = (data as Record<string, unknown>).url;
+    if (typeof currentUrl === "string") {
+      (data as Record<string, unknown>).url = normalizeMediaUrl(currentUrl);
+    }
+  }
+
+  return data;
 }
 
 export async function setAuthToken(token: string) {

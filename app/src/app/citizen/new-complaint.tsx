@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import { createComplaint } from "../../services/complaintService";
+import { uploadComplaintAttachment } from "../../services/fileUploadService";
 import * as DocumentPicker from "expo-document-picker";
 import {
   Alert,
@@ -44,6 +45,34 @@ function Category({
       </Text>
     </TouchableOpacity>
   );
+}
+
+function getAttachmentMimeType(file: { mimeType?: string | null; name?: string | null }) {
+  if (file.mimeType) {
+    return file.mimeType;
+  }
+
+  const fileName = (file.name || "").toLowerCase();
+  if (fileName.endsWith(".pdf")) {
+    return "application/pdf";
+  }
+  if (fileName.endsWith(".png")) {
+    return "image/png";
+  }
+  if (fileName.endsWith(".webp")) {
+    return "image/webp";
+  }
+  if (fileName.endsWith(".gif")) {
+    return "image/gif";
+  }
+  if (
+    fileName.endsWith(".heic") ||
+    fileName.endsWith(".heif")
+  ) {
+    return "image/heic";
+  }
+
+  return "image/jpeg";
 }
 
 export default function NewComplaintScreen() {
@@ -190,13 +219,22 @@ export default function NewComplaintScreen() {
     }
     setIsLoading(true);
     try {
+      let attachmentUrl: string | null = null;
+      if (attachedFile?.uri) {
+        attachmentUrl = await uploadComplaintAttachment({
+          uri: attachedFile.uri,
+          name: attachedFile.name ?? `complaint-attachment-${Date.now()}`,
+          type: getAttachmentMimeType(attachedFile),
+        });
+      }
+
       const complaint = await createComplaint({
         category: selectedCategory,
         sub_category: selectedSubCategory,
         description: description.trim(),
         location_text: address.trim(),
         priority: "normal",
-        attachment_url: attachedFile?.uri || null,
+        attachment_url: attachmentUrl,
       });
       Alert.alert(
         "Complaint Submitted",

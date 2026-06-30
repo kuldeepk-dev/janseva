@@ -583,7 +583,7 @@ export default function RegisterVoterProfileScreen() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: "images",
+      mediaTypes: ["images"],
       cameraType: ImagePicker.CameraType.front,
       quality: 0.7,
     });

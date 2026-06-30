@@ -1,4 +1,5 @@
 import { apiConfigError } from "../lib/api";
+import { normalizeMediaUrl } from "../lib/mediaUrl";
 import { getToken } from "../lib/tokenStorage";
 
 export type UploadFile = {
@@ -34,7 +35,7 @@ async function uploadFile(endpoint: string, file: UploadFile) {
   }
 
   const data = (await response.json()) as { url: string };
-  return data.url;
+  return normalizeMediaUrl(data.url) ?? data.url;
 }
 
 export async function uploadVoterPhoto(file: UploadFile) {

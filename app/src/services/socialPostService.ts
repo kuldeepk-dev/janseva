@@ -1,4 +1,5 @@
 import { apiFetch } from "../lib/api";
+import { normalizeMediaUrl, normalizeMediaUrls } from "../lib/mediaUrl";
 
 export type SocialPost = {
   id: string;
@@ -29,25 +30,41 @@ export type SocialPostShareTrackingRow = {
   updated_at: string | null;
 };
 
+function normalizePost(post: SocialPost) {
+  return {
+    ...post,
+    image_url: normalizeMediaUrl(post.image_url),
+    image_urls: normalizeMediaUrls(post.image_urls),
+  };
+}
+
+function normalizePosts(posts: SocialPost[]) {
+  return posts.map(normalizePost);
+}
+
 export async function getPublishedPosts() {
-  return apiFetch<SocialPost[]>("/social-posts/published");
+  const posts = await apiFetch<SocialPost[]>("/social-posts/published");
+  return normalizePosts(posts);
 }
 
 export async function createDraft(data: SocialPostInsert) {
-  return apiFetch<SocialPost>("/social-posts", {
+  const post = await apiFetch<SocialPost>("/social-posts", {
     method: "POST",
     body: JSON.stringify(data),
   });
+  return normalizePost(post);
 }
 
 export async function publishPost(id: string) {
-  return apiFetch<SocialPost>(`/social-posts/${id}/publish`, {
+  const post = await apiFetch<SocialPost>(`/social-posts/${id}/publish`, {
     method: "POST",
   });
+  return normalizePost(post);
 }
 
 export async function getPendingPosts() {
-  return apiFetch<SocialPost[]>("/social-posts/pending");
+  const posts = await apiFetch<SocialPost[]>("/social-posts/pending");
+  return normalizePosts(posts);
 }
 
 export async function trackPostShare(id: string, platform: string) {

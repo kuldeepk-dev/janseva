@@ -1,4 +1,5 @@
 import { apiFetch } from "../lib/api";
+import { normalizeMediaUrl } from "../lib/mediaUrl";
 
 export type FamilyMember = {
   name: string;
@@ -33,22 +34,40 @@ export type Voter = {
 export type VoterInsert = Partial<Voter>;
 export type VoterUpdate = Partial<Voter>;
 
+function normalizeVoter(voter: Voter | null) {
+  if (!voter) {
+    return null;
+  }
+
+  return {
+    ...voter,
+    photo_url: normalizeMediaUrl(voter.photo_url),
+  };
+}
+
+function normalizeVoters(voters: Voter[]) {
+  return voters.map(voter => normalizeVoter(voter) as Voter);
+}
+
 export async function createVoter(data: VoterInsert) {
-  return apiFetch<Voter>("/voters", {
+  const voter = await apiFetch<Voter>("/voters", {
     method: "POST",
     body: JSON.stringify(data),
   });
+  return normalizeVoter(voter) as Voter;
 }
 
 export async function updateVoter(id: string, data: VoterUpdate) {
-  return apiFetch<Voter>(`/voters/${id}`, {
+  const voter = await apiFetch<Voter>(`/voters/${id}`, {
     method: "PUT",
     body: JSON.stringify(data),
   });
+  return normalizeVoter(voter) as Voter;
 }
 
 export async function getMyVoter() {
-  return apiFetch<Voter | null>("/voters/me");
+  const voter = await apiFetch<Voter | null>("/voters/me");
+  return normalizeVoter(voter);
 }
 
 export async function searchVoters(query: string) {
@@ -56,5 +75,6 @@ export async function searchVoters(query: string) {
   if (!trimmed) {
     return [] as Voter[];
   }
-  return apiFetch<Voter[]>(`/voters/search?q=${encodeURIComponent(trimmed)}`);
+  const voters = await apiFetch<Voter[]>(`/voters/search?q=${encodeURIComponent(trimmed)}`);
+  return normalizeVoters(voters);
 }

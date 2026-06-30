@@ -168,19 +168,39 @@ export default function SocialFeedScreen() {
       queryParams: { postId: id },
     });
 
-  const performNativeShare = async (postId: string, title: string) => {
+  const performNativeShare = async ({
+    postId,
+    title,
+    desc,
+    imageUrls,
+  }: {
+    postId: string;
+    title: string;
+    desc: string;
+    imageUrls: string[];
+  }) => {
     const trimmedTitle = title.trim();
+    const trimmedDesc = desc.trim();
     const shareUrl = buildPostShareUrl(postId);
+    const imageUrl = imageUrls.find(Boolean) ?? shareUrl;
     const message = trimmedTitle
-      ? `${trimmedTitle}\n\nOpen this post in Jan Seva:\n${shareUrl}`
-      : `Open this post in Jan Seva:\n${shareUrl}`;
+      ? [
+          trimmedTitle,
+          trimmedDesc || null,
+          `Open this post in Jan Seva:\n${shareUrl}`,
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      : trimmedDesc
+        ? `${trimmedDesc}\n\nOpen this post in Jan Seva:\n${shareUrl}`
+        : `Open this post in Jan Seva:\n${shareUrl}`;
 
     try {
       await Share.share(
         {
           title: trimmedTitle || "Jan Seva Portal",
           message,
-          url: shareUrl,
+          url: imageUrl,
         },
         Platform.OS === "android"
           ? { dialogTitle: trimmedTitle || "Share Post" }
@@ -193,8 +213,23 @@ export default function SocialFeedScreen() {
     }
   };
 
-  const handleShare = async (postId: string, title: string) => {
-    const didOpenShare = await performNativeShare(postId, title);
+  const handleShare = async ({
+    postId,
+    title,
+    desc,
+    imageUrls,
+  }: {
+    postId: string;
+    title: string;
+    desc: string;
+    imageUrls: string[];
+  }) => {
+    const didOpenShare = await performNativeShare({
+      postId,
+      title,
+      desc,
+      imageUrls,
+    });
     if (!didOpenShare) {
       return;
     }
@@ -288,7 +323,14 @@ export default function SocialFeedScreen() {
               imageUrls={post.imageUrls}
               tagTone={post.tagTone}
               time={post.time}
-              onShare={() => void handleShare(post.id, post.title)}
+              onShare={() =>
+                void handleShare({
+                  postId: post.id,
+                  title: post.title,
+                  desc: post.desc,
+                  imageUrls: post.imageUrls,
+                })
+              }
             />
           </View>
         ))}

@@ -15,6 +15,11 @@ const DEMO_COMPLAINTS_SEED_ENABLED =
   process.env.DEMO_COMPLAINTS_SEED_ENABLED === "true";
 const ENABLE_OTP_FLOW = process.env.ENABLE_OTP_FLOW === "true";
 const ENABLE_WHATSAPP_FLOW = process.env.ENABLE_WHATSAPP_FLOW === "true";
+const AWS_REGION = process.env.AWS_REGION;
+const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
+const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
+const AWS_S3_BUCKET = process.env.AWS_S3_BUCKET;
+const AWS_S3_PUBLIC_BASE_URL = process.env.AWS_S3_PUBLIC_BASE_URL;
 const UPLOADS_DIR = path.join(__dirname, "..", "..", "uploads");
 
 module.exports = {
@@ -32,5 +37,10 @@ module.exports = {
   DEMO_COMPLAINTS_SEED_ENABLED,
   ENABLE_OTP_FLOW,
   ENABLE_WHATSAPP_FLOW,
+  AWS_REGION,
+  AWS_ACCESS_KEY_ID,
+  AWS_SECRET_ACCESS_KEY,
+  AWS_S3_BUCKET,
+  AWS_S3_PUBLIC_BASE_URL,
   UPLOADS_DIR,
 };
