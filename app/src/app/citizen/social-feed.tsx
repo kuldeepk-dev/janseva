@@ -1,7 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
+import * as Sharing from "expo-sharing";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiConfigError } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -11,15 +12,39 @@ import {
 import { PostImageCarousel } from "../../components/PostImageCarousel";
 import {
   Alert,
+  Image,
   Platform,
   ScrollView,
   Share,
+  type ShareContent,
+  type View as RNView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { captureRef, releaseCapture } from "react-native-view-shot";
+
+type FeedPost = {
+  id: string;
+  title: string;
+  desc: string;
+  tag: string;
+  imageUrls: string[];
+  tagTone: "green" | "blue";
+  time: string;
+};
+
+type SharePreviewPost = {
+  title: string;
+  desc: string;
+  tag: string;
+  tagTone: "green" | "blue";
+  time: string;
+  imageUrl: string | null;
+  shareUrl: string;
+};
 
 function FeedCard({
   title,
@@ -73,17 +98,15 @@ export default function SocialFeedScreen() {
   const { userRole } = useAuth();
   const [activeFilter, setActiveFilter] = useState("All");
   const [error, setError] = useState<string | null>(null);
-  const [posts, setPosts] = useState<
-    Array<{
-      id: string;
-      title: string;
-      desc: string;
-      tag: string;
-      imageUrls: string[];
-      tagTone: "green" | "blue";
-      time: string;
-    }>
-  >([]);
+  const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [sharePreviewPost, setSharePreviewPost] =
+    useState<SharePreviewPost | null>(null);
+  const [sharePreviewReady, setSharePreviewReady] = useState(false);
+  const sharePreviewRef = useRef<RNView | null>(null);
+  const sharePreviewPromiseRef = useRef<{
+    resolve: (uri: string) => void;
+    reject: (error: Error) => void;
+  } | null>(null);
   const isPublicFeed = role === "public";
   const isBoothWorker = userRole === "booth_worker";
   const backTarget = useMemo(() => {
@@ -168,67 +191,186 @@ export default function SocialFeedScreen() {
       queryParams: { postId: id },
     });
 
-  const performNativeShare = async ({
-    postId,
+  useEffect(() => {
+    if (!sharePreviewPost || !sharePreviewReady) {
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!sharePreviewRef.current) {
+        const pending = sharePreviewPromiseRef.current;
+        sharePreviewPromiseRef.current = null;
+        setSharePreviewPost(null);
+        setSharePreviewReady(false);
+        pending?.reject(new Error("Share preview is not ready yet."));
+        return;
+      }
+
+      void captureRef(sharePreviewRef, {
+        format: "jpg",
+        quality: 0.92,
+        result: "tmpfile",
+        fileName: "jan-seva-post-share",
+      })
+        .then(uri => {
+          if (cancelled) {
+            releaseCapture(uri);
+            return;
+          }
+          const pending = sharePreviewPromiseRef.current;
+          sharePreviewPromiseRef.current = null;
+          setSharePreviewPost(null);
+          setSharePreviewReady(false);
+          pending?.resolve(uri);
+        })
+        .catch(error => {
+          if (cancelled) {
+            return;
+          }
+          const pending = sharePreviewPromiseRef.current;
+          sharePreviewPromiseRef.current = null;
+          setSharePreviewPost(null);
+          setSharePreviewReady(false);
+          pending?.reject(
+            error instanceof Error
+              ? error
+              : new Error("Failed to capture the share preview."),
+          );
+        });
+    }, 150);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [sharePreviewPost, sharePreviewReady]);
+
+  const buildSharePreviewImage = (post: SharePreviewPost) =>
+    new Promise<string>((resolve, reject) => {
+      sharePreviewPromiseRef.current = { resolve, reject };
+      setSharePreviewReady(!post.imageUrl);
+      setSharePreviewPost(post);
+    });
+
+  const performTextShare = async ({
     title,
     desc,
-    imageUrls,
+    shareUrl,
   }: {
-    postId: string;
     title: string;
     desc: string;
-    imageUrls: string[];
+    shareUrl: string;
   }) => {
-    const trimmedTitle = title.trim();
-    const trimmedDesc = desc.trim();
-    const shareUrl = buildPostShareUrl(postId);
-    const imageUrl = imageUrls.find(Boolean) ?? shareUrl;
-    const message = trimmedTitle
-      ? [
-          trimmedTitle,
-          trimmedDesc || null,
-          `Open this post in Jan Seva:\n${shareUrl}`,
-        ]
-          .filter(Boolean)
-          .join("\n\n")
-      : trimmedDesc
-        ? `${trimmedDesc}\n\nOpen this post in Jan Seva:\n${shareUrl}`
-        : `Open this post in Jan Seva:\n${shareUrl}`;
+    const baseContent = {
+      title: title || "Jan Seva Portal",
+      message: title
+        ? [title, desc || null, `Open this post in Jan Seva:\n${shareUrl}`]
+            .filter(Boolean)
+            .join("\n\n")
+        : desc
+          ? `${desc}\n\nOpen this post in Jan Seva:\n${shareUrl}`
+          : `Open this post in Jan Seva:\n${shareUrl}`,
+    };
+    const shareOptions =
+      Platform.OS === "android"
+        ? { dialogTitle: title || "Share Post" }
+        : undefined;
+    const shareWith = async (content: ShareContent) => {
+      const result = await Share.share(content, shareOptions);
+      return result.action !== Share.dismissedAction;
+    };
 
     try {
-      await Share.share(
-        {
-          title: trimmedTitle || "Jan Seva Portal",
-          message,
-          url: imageUrl,
-        },
-        Platform.OS === "android"
-          ? { dialogTitle: trimmedTitle || "Share Post" }
-          : undefined,
-      );
-      return true;
+      return await shareWith({
+        ...baseContent,
+        url: shareUrl,
+      });
     } catch {
       Alert.alert("Share", "Sharing is not available on this device.");
       return false;
     }
   };
 
+  const performNativeShare = async ({
+    title,
+    desc,
+    tag,
+    tagTone,
+    time,
+    shareUrl,
+    imageUrl,
+  }: {
+    title: string;
+    desc: string;
+    tag: string;
+    tagTone: "green" | "blue";
+    time: string;
+    shareUrl: string;
+    imageUrl: string | null;
+  }) => {
+    const trimmedTitle = title.trim();
+    const trimmedDesc = desc.trim();
+
+    try {
+      const sharingAvailable = await Sharing.isAvailableAsync();
+      if (sharingAvailable) {
+        const previewUri = await buildSharePreviewImage({
+          title: trimmedTitle || "Jan Seva Portal",
+          desc: trimmedDesc,
+          tag,
+          tagTone,
+          time,
+          imageUrl,
+          shareUrl,
+        });
+        try {
+          await Sharing.shareAsync(previewUri, {
+            dialogTitle: trimmedTitle || "Share Post",
+            mimeType: "image/jpeg",
+            UTI: "public.jpeg",
+          });
+          return true;
+        } finally {
+          releaseCapture(previewUri);
+        }
+      }
+    } catch {
+      // Fall back to a text share if image-based sharing is unavailable.
+    }
+
+    return await performTextShare({
+      title: trimmedTitle,
+      desc: trimmedDesc,
+      shareUrl,
+    });
+  };
+
   const handleShare = async ({
     postId,
     title,
     desc,
+    tag,
+    tagTone,
+    time,
     imageUrls,
   }: {
     postId: string;
     title: string;
     desc: string;
+    tag: string;
+    tagTone: "green" | "blue";
+    time: string;
     imageUrls: string[];
   }) => {
     const didOpenShare = await performNativeShare({
-      postId,
       title,
       desc,
-      imageUrls,
+      tag,
+      tagTone,
+      time,
+      shareUrl: buildPostShareUrl(postId),
+      imageUrl: imageUrls.map(url => url.trim()).find(Boolean) ?? null,
     });
     if (!didOpenShare) {
       return;
@@ -323,16 +465,19 @@ export default function SocialFeedScreen() {
               imageUrls={post.imageUrls}
               tagTone={post.tagTone}
               time={post.time}
-              onShare={() =>
-                void handleShare({
-                  postId: post.id,
-                  title: post.title,
-                  desc: post.desc,
-                  imageUrls: post.imageUrls,
-                })
-              }
-            />
-          </View>
+            onShare={() =>
+              void handleShare({
+                postId: post.id,
+                title: post.title,
+                desc: post.desc,
+                tag: post.tag.toUpperCase(),
+                tagTone: post.tagTone,
+                time: post.time,
+                imageUrls: post.imageUrls,
+              })
+            }
+          />
+        </View>
         ))}
 
         {!visiblePosts.length ? (
@@ -344,6 +489,67 @@ export default function SocialFeedScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {sharePreviewPost ? (
+        <View pointerEvents="none" style={styles.sharePreviewStage}>
+          <View
+            ref={sharePreviewRef}
+            collapsable={false}
+            style={styles.sharePreviewCard}
+          >
+            {sharePreviewPost.imageUrl ? (
+              <Image
+                source={{ uri: sharePreviewPost.imageUrl }}
+                style={styles.sharePreviewImage}
+                resizeMode="cover"
+                onLoadEnd={() => setSharePreviewReady(true)}
+                onError={() => setSharePreviewReady(true)}
+              />
+            ) : (
+              <View style={styles.sharePreviewImageFallback}>
+                <Text style={styles.sharePreviewImageFallbackText}>
+                  Jan Seva
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.sharePreviewBody}>
+              <View style={styles.sharePreviewMeta}>
+                <View
+                  style={[
+                    styles.sharePreviewTag,
+                    sharePreviewPost.tagTone === "blue" &&
+                      styles.sharePreviewTagBlue,
+                  ]}
+                >
+                  <Text style={styles.sharePreviewTagText}>
+                    {sharePreviewPost.tag}
+                  </Text>
+                </View>
+                <Text style={styles.sharePreviewTime}>
+                  {sharePreviewPost.time}
+                </Text>
+              </View>
+
+              <Text style={styles.sharePreviewBrand}>Jan Seva Portal</Text>
+              <Text style={styles.sharePreviewTitle}>
+                {sharePreviewPost.title}
+              </Text>
+              {sharePreviewPost.desc ? (
+                <Text style={styles.sharePreviewDesc}>
+                  {sharePreviewPost.desc}
+                </Text>
+              ) : null}
+              <Text style={styles.sharePreviewLinkLabel}>
+                Open this post in Jan Seva
+              </Text>
+              <Text style={styles.sharePreviewLink}>
+                {sharePreviewPost.shareUrl}
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -459,4 +665,92 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { color: "#121C28", fontSize: 14, fontWeight: "700" },
   emptyText: { color: "#444651", fontSize: 12, lineHeight: 18, textAlign: "center" },
+  sharePreviewStage: {
+    position: "absolute",
+    left: -9999,
+    top: 0,
+    width: 360,
+  },
+  sharePreviewCard: {
+    width: 340,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#C5C5D3",
+  },
+  sharePreviewImage: {
+    width: "100%",
+    height: 220,
+    backgroundColor: "#CBD9E9",
+  },
+  sharePreviewImageFallback: {
+    width: "100%",
+    height: 180,
+    backgroundColor: "#DCE7F8",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sharePreviewImageFallbackText: {
+    color: "#00236F",
+    fontSize: 28,
+    fontWeight: "800",
+  },
+  sharePreviewBody: {
+    padding: 16,
+    gap: 8,
+  },
+  sharePreviewMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  sharePreviewTag: {
+    backgroundColor: "#006C49",
+    borderRadius: 99,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  sharePreviewTagBlue: {
+    backgroundColor: "#00236F",
+  },
+  sharePreviewTagText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  sharePreviewTime: {
+    color: "#757682",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  sharePreviewBrand: {
+    color: "#00236F",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  sharePreviewTitle: {
+    color: "#121C28",
+    fontSize: 22,
+    fontWeight: "800",
+    lineHeight: 28,
+  },
+  sharePreviewDesc: {
+    color: "#444651",
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  sharePreviewLinkLabel: {
+    marginTop: 4,
+    color: "#00236F",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  sharePreviewLink: {
+    color: "#3559A7",
+    fontSize: 12,
+    lineHeight: 18,
+  },
 });
